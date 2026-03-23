@@ -653,23 +653,28 @@ class OraApp(App):
     # Settings popup
     # -------------------------------------------------------------------
 
+    def _reload_and_rebuild(self, message: str = "Config reloaded.") -> None:
+        """Reload config from disk and rebuild system prompt immediately."""
+        reload_config(self.config, self.workspace_dir)
+        self._refresh_system_prompt()
+        self._ui_add_system_message(message)
+        self.query_one("#user-input", Input).focus()
+
     def _open_settings(self) -> None:
         """Push the settings popup. Callback fires when it closes."""
-        def on_dismiss(result: bool) -> None:
-            reload_config(self.config, self.workspace_dir)
-            self._ui_add_system_message("Settings closed. Config reloaded.")
-            self.query_one("#user-input", Input).focus()
-        self.push_screen(SettingsScreen(self.workspace_dir), callback=on_dismiss)
+        self.push_screen(
+            SettingsScreen(self.workspace_dir),
+            callback=lambda _: self._reload_and_rebuild("Settings closed. Config and rules reloaded."),
+        )
 
     def _open_models(self) -> None:
         """Open settings popup with models.md pre-loaded."""
-        def on_dismiss(result: bool) -> None:
-            reload_config(self.config, self.workspace_dir)
-            self._ui_add_system_message("Models updated. Config reloaded.")
-            self.query_one("#user-input", Input).focus()
         screen = SettingsScreen(self.workspace_dir)
         screen._preload_file = str(self.workspace_dir / "models.md")
-        self.push_screen(screen, callback=on_dismiss)
+        self.push_screen(
+            screen,
+            callback=lambda _: self._reload_and_rebuild("Models updated. Config and rules reloaded."),
+        )
 
     def action_open_settings(self) -> None:
         """Triggered by F2 keybinding."""
@@ -794,9 +799,23 @@ class OraApp(App):
     # Agent worker
     # -------------------------------------------------------------------
 
+    def _refresh_system_prompt(self) -> None:
+        """Rebuild the system prompt from current config and workspace files.
+        Replaces messages[0] so the model always sees up-to-date rules."""
+        reload_config(self.config, self.workspace_dir)
+        new_prompt = _build_system_prompt(
+            self.workspace_dir, self.hardware_summary,
+            self.config, self.approved_remote,
+        )
+        if self.messages and hasattr(self.messages[0], "content"):
+            self.messages[0] = SystemMessage(content=new_prompt)
+
     @work(exclusive=True, thread=True)
     def _run_agent_turn(self, user_input: str) -> None:
         """Run one full agent turn in a background thread."""
+        # Rebuild system prompt so model sees current config (safety rules, etc.)
+        self._refresh_system_prompt()
+
         # Vision routing
         vr = route_user_message(
             user_input, self.workspace_dir, self.config.ollama_base_url,

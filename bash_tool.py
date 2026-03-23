@@ -123,17 +123,26 @@ def _read_config_from_disk(workspace_dir: Path | None) -> dict:
             if ": " in line:
                 key, value = line.split(": ", 1)
                 raw[key.strip()] = value.strip()
-        parse_bool = lambda v: v.strip().lower() in ("true", "yes", "1")
+        def parse_bool_safe(value: str, default: bool) -> bool:
+            """Parse bool, defaulting to the SAFE value on unrecognized input."""
+            v = value.strip().lower()
+            if v in ("true", "yes", "1"):
+                return True
+            if v in ("false", "no", "0"):
+                return False
+            # Unrecognized (typo like 'ture', 'flase') → return safe default
+            return default
+
         if "bash_exclude_commands" in raw:
             defaults["bash_exclude_commands"] = [
                 s.strip() for s in raw["bash_exclude_commands"].split(",") if s.strip()
             ]
         if "bash_require_confirm" in raw:
-            defaults["bash_require_confirm"] = parse_bool(raw["bash_require_confirm"])
+            defaults["bash_require_confirm"] = parse_bool_safe(raw["bash_require_confirm"], True)
         if "bash_restrict_to_workspace" in raw:
-            defaults["bash_restrict_to_workspace"] = parse_bool(raw["bash_restrict_to_workspace"])
+            defaults["bash_restrict_to_workspace"] = parse_bool_safe(raw["bash_restrict_to_workspace"], True)
         if "bash_warn_destructive" in raw:
-            defaults["bash_warn_destructive"] = parse_bool(raw["bash_warn_destructive"])
+            defaults["bash_warn_destructive"] = parse_bool_safe(raw["bash_warn_destructive"], True)
     except Exception:
         pass
     return defaults

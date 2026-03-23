@@ -63,8 +63,14 @@ class OraConfig:
     auto_reload_config: bool = False
 
 
-def _parse_bool(value: str) -> bool:
-    return value.strip().lower() in ("true", "yes", "1")
+def _parse_bool(value: str, safe_default: bool = True) -> bool:
+    """Parse a bool string. On unrecognized input (typos), return safe_default."""
+    v = value.strip().lower()
+    if v in ("true", "yes", "1"):
+        return True
+    if v in ("false", "no", "0"):
+        return False
+    return safe_default
 
 
 def load_config(workspace_dir: Path) -> OraConfig:
@@ -1084,9 +1090,11 @@ def main():
             # Normal agent turn
             # ---------------------------------------------------------------
 
-            # Optionally reload config each turn
-            if config.auto_reload_config:
-                reload_config(config, workspace_dir)
+            # Refresh config + system prompt every turn so rule changes take effect
+            reload_config(config, workspace_dir)
+            messages[0] = SystemMessage(content=_build_system_prompt(
+                workspace_dir, hardware_summary, config, approved_remote,
+            ))
 
             # Vision routing — pre-process user message for file attachments
             vr = route_user_message(
