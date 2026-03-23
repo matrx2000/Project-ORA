@@ -10,7 +10,7 @@ Linux system autonomously.
 
 Everything runs on your machine. No cloud APIs. No data leaves the box.
 
-> **WARNING** — Ora OS has unrestricted access to the Linux filesystem and can install
+> **WARNING** — O.R.A. has unrestricted access to the Linux filesystem and can install
 > packages, manage processes, and modify system state. **Run it on a dedicated machine
 > that does not contain personal data.** Do not run it on your daily driver.
 
