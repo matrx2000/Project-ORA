@@ -49,7 +49,6 @@ BRIEF_SAFETY_WARNING = (
 @dataclass
 class OraConfig:
     ollama_base_url: str = "http://127.0.0.1:11434"
-    bootstrap_model: str = "phi4-mini"
     default_model: str = ""
     overflow_threshold: float = 0.82
     summary_keep_last_n_turns: int = 4
@@ -85,8 +84,6 @@ def load_config(workspace_dir: Path) -> OraConfig:
 
     if "base_url" in raw:
         cfg.ollama_base_url = raw["base_url"]
-    if "bootstrap_model" in raw:
-        cfg.bootstrap_model = raw["bootstrap_model"]
     if "default_model" in raw:
         cfg.default_model = raw["default_model"]
     if "overflow_threshold" in raw:
@@ -133,6 +130,21 @@ def load_config(workspace_dir: Path) -> OraConfig:
 def _load_text(path: Path) -> str:
     if path.exists():
         return path.read_text(encoding="utf-8").strip()
+    return ""
+
+
+def _get_model_for_role(workspace_dir: Path, role: str) -> str:
+    """Read the model assigned to a role from models.md."""
+    path = workspace_dir / "models.md"
+    if not path.exists():
+        return ""
+    current_role = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("### "):
+            current_role = stripped[4:].strip()
+        elif current_role == role and stripped.startswith("model:"):
+            return stripped.split(":", 1)[1].strip()
     return ""
 
 
