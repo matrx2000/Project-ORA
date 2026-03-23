@@ -347,6 +347,68 @@ Ora: The screenshot shows a systemd service failure with exit code 203...
 
 ---
 
+## Configuration Reference
+
+All settings live in `config.md` inside your workspace directory. You can edit
+them manually or use `/settings` mid-session. Run `show_paths` to find where
+your workspace is stored.
+
+### Ollama
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `base_url` | `http://127.0.0.1:11434` | Ollama API endpoint |
+
+### Models
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `bootstrap_model` | `phi4-mini` | Model used during the first-run wizard |
+| `default_model` | *(blank)* | Model for the main agent loop. Leave blank to be prompted at startup |
+| `allow_agent_initiated_switching` | `true` | Allow the agent to switch to specialist models on its own |
+| `require_user_confirm_switch` | `false` | Require `[y/N]` confirmation before every model switch |
+
+### Context Overflow
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `overflow_threshold` | `0.82` | Context usage percentage that triggers automatic summarisation (0.0–1.0) |
+| `summary_keep_last_n_turns` | `4` | Number of recent turns kept verbatim after summarisation |
+| `max_summary_tokens` | `400` | Maximum token length for the compressed summary |
+
+### Safety
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `bash_require_confirm` | `true` | Require `[y/N]` confirmation before every bash command. Set to `false` to auto-execute. **Destructive commands are still flagged.** |
+| `bash_exclude_commands` | `rm -rf /,mkfs,dd if=/dev/zero,shutdown,reboot` | Comma-separated list of hard-blocked command patterns. These are refused unconditionally. |
+
+### Session
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `auto_save_session_state` | `true` | Write `session_state.md` after every turn |
+| `auto_reload_config` | `false` | Re-read `config.md` at the start of every turn (useful if you edit config mid-session in another editor) |
+
+### Changing settings mid-session
+
+Type `/settings` to enter settings mode, then describe what you want to change
+in plain language:
+
+```
+> /settings safety
+> turn off bash confirmation
+ora: I'll set bash_require_confirm: false in config.md.
+     Confirm? [y/N]:
+```
+
+Focused shortcuts: `/settings network`, `/settings models`, `/settings profile`,
+`/settings safety`, `/settings memory`, `/settings vision`.
+
+Type `/done` to return to normal mode.
+
+---
+
 ## License
 
 [MIT](LICENSE)
