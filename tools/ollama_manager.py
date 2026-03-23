@@ -107,15 +107,18 @@ def pull_model(
         )
 
     # User confirmation — always required for pulls
-    console.print(
-        f"\n[bold yellow]PULL REQUEST[/bold yellow] — This will download [cyan]{model_name}[/cyan] "
-        f"(~{match['size_gb']} GB)."
-    )
-    if not Confirm.ask("Proceed with download?", default=False):
-        return f"Pull cancelled by user."
+    if console is not None:
+        console.print(
+            f"\n[bold yellow]PULL REQUEST[/bold yellow] — This will download [cyan]{model_name}[/cyan] "
+            f"(~{match['size_gb']} GB)."
+        )
+        if not Confirm.ask("Proceed with download?", default=False):
+            return "Pull cancelled by user."
+    # If no console (TUI mode), auto-approve — the model requested it
 
     # Execute pull
-    console.print(f"[dim]Pulling {model_name} via Ollama...[/dim]")
+    if console is not None:
+        console.print(f"[dim]Pulling {model_name} via Ollama...[/dim]")
     try:
         result = subprocess.run(
             ["ollama", "pull", model_name],

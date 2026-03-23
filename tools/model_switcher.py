@@ -186,7 +186,7 @@ def make_switch_model_tool(
     ollama_base_url: str,
     active_model_ref: list,  # mutable single-element list so tool sees current value
     require_confirm: bool,
-    console: Console,
+    console: Console | None,
     session_decisions: dict | None = None,
     scored_remote_models: list | None = None,
 ):
@@ -196,10 +196,17 @@ def make_switch_model_tool(
 
     session_decisions: {(node_label, model): "approved"|"declined"} from network scan
     scored_remote_models: list of ScoredRemoteModel from network scan
+
+    console may be None (TUI mode). In that case, status messages are skipped
+    and confirmation prompts are auto-approved.
     """
     workspace_dir = Path(workspace_dir)
     _session_decisions = session_decisions or {}
     _scored_remote = scored_remote_models or []
+
+    def _print(msg: str) -> None:
+        if console is not None:
+            console.print(msg)
 
     def switch_model(role: str, task_prompt: str, transfer_context: str) -> str:
         """
@@ -233,18 +240,17 @@ def make_switch_model_tool(
             remote_node = remote_candidate.node_label
             remote_addr = remote_candidate.node_address
 
-            if require_confirm:
-                console.print(
+            if require_confirm and console is not None:
+                _print(
                     f"\n[bold yellow]MODEL SWITCH (remote)[/bold yellow] "
                     f"-> [cyan]{remote_model}[/cyan] on {remote_node} "
                     f"(role: {role})"
                 )
                 if not Confirm.ask("Allow switch?", default=True):
-                    # Fall through to local
                     use_remote = False
 
         if use_remote:
-            console.print(
+            _print(
                 f"[dim]  [switch] {current_model} -> {remote_model}@{remote_node} "
                 f"(role: {role}, remote)[/dim]"
             )
@@ -257,14 +263,13 @@ def make_switch_model_tool(
                     f"{remote_model}@{remote_node}",
                     f"{role} role (remote)",
                 )
-                console.print(
+                _print(
                     f"[dim]  [switch] {remote_model}@{remote_node} returned result, "
                     f"back to {current_model}[/dim]"
                 )
                 return result
 
-            # Remote failed — fall back to local
-            console.print(
+            _print(
                 f"[yellow]  [switch] Remote node '{remote_node}' is not responding. "
                 f"Falling back to local {target_model}.[/yellow]"
             )
@@ -274,8 +279,8 @@ def make_switch_model_tool(
         if not fits:
             return f"Error: cannot switch to {target_model} — {fit_reason}"
 
-        if require_confirm and not use_remote:
-            console.print(
+        if require_confirm and console is not None:
+            _print(
                 f"\n[bold yellow]MODEL SWITCH[/bold yellow] "
                 f"[dim]{current_model}[/dim] -> [cyan]{target_model}[/cyan] "
                 f"(role: {role})"
@@ -283,7 +288,7 @@ def make_switch_model_tool(
             if not Confirm.ask("Allow switch?", default=True):
                 return "Model switch cancelled by user."
 
-        console.print(
+        _print(
             f"[dim]  [switch] {current_model} -> {target_model} (role: {role})[/dim]"
         )
 
@@ -316,7 +321,7 @@ def make_switch_model_tool(
         # Log the switch
         _append_switch_log(workspace_dir, current_model, target_model, f"{role} role requested")
 
-        console.print(
+        _print(
             f"[dim]  [switch] {target_model} returned result, back to {current_model}[/dim]"
         )
         return result

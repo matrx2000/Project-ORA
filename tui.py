@@ -305,6 +305,9 @@ class OraApp(App):
     """
 
     BINDINGS = [
+        Binding("f1", "show_help", "Help", show=True),
+        Binding("f2", "open_settings", "Settings", show=True),
+        Binding("f3", "clear_panels", "Clear", show=True),
         Binding("ctrl+q", "quit", "Quit", show=True),
     ]
 
@@ -622,6 +625,30 @@ class OraApp(App):
             self.query_one("#user-input", Input).focus()
         self.push_screen(SettingsScreen(self.workspace_dir), callback=on_dismiss)
 
+    def action_open_settings(self) -> None:
+        """Triggered by F2 keybinding."""
+        self._open_settings()
+
+    def action_show_help(self) -> None:
+        """Triggered by F1 keybinding."""
+        self._show_help()
+
+    def action_clear_panels(self) -> None:
+        """Triggered by F3 keybinding or /clear command."""
+        self._clear_panels()
+
+    def _clear_panels(self) -> None:
+        """Remove all messages from chat and thinking panels."""
+        for panel_id in ("#chat-scroll", "#thinking-scroll"):
+            scroll = self.query_one(panel_id)
+            for child in list(scroll.children):
+                child.remove()
+        self._streaming_widget = None
+        self._thinking_widget = None
+        self._stream_buffer = ""
+        self._think_buffer = ""
+        self._ui_add_system_message("Panels cleared.")
+
     # -------------------------------------------------------------------
     # Input handling
     # -------------------------------------------------------------------
@@ -643,6 +670,10 @@ class OraApp(App):
             self._show_help()
             return
 
+        if lower == "/clear":
+            self._clear_panels()
+            return
+
         if lower.startswith("/settings"):
             self._open_settings()
             return
@@ -655,31 +686,49 @@ class OraApp(App):
     def _show_help(self) -> None:
         """Display help text in the conversation panel."""
         help_text = (
-            "[bold]O.R.A. Commands[/bold]\n"
-            "\n"
-            "  [cyan]/help[/cyan]         Show this help\n"
-            "  [cyan]/settings[/cyan]     Open settings popup (edit workspace files)\n"
-            "  [cyan]exit[/cyan]          Save session and quit\n"
-            "  [cyan]Ctrl+Q[/cyan]        Quit\n"
+            "[bold]Commands[/bold]\n"
+            "  [cyan]/help[/cyan]         Show this help          [dim](or F1)[/dim]\n"
+            "  [cyan]/settings[/cyan]     Open settings popup     [dim](or F2)[/dim]\n"
+            "  [cyan]/clear[/cyan]        Clear chat & thinking   [dim](or F3)[/dim]\n"
+            "  [cyan]exit[/cyan]          Save session and quit   [dim](or Ctrl+Q)[/dim]\n"
             "\n"
             "[bold]Settings popup[/bold]\n"
+            "  Click a file in the tree → edit in the editor → "
+            "[cyan]Ctrl+S[/cyan] to save → [cyan]Esc[/cyan] to close\n"
             "\n"
-            "  Click a file in the tree to open it in the editor.\n"
-            "  [cyan]Ctrl+S[/cyan]  Save the current file\n"
-            "  [cyan]Esc[/cyan]     Close the popup (config reloads automatically)\n"
+            "[bold]Workspace files[/bold]  [dim](open with /settings or F2)[/dim]\n"
+            "  [cyan]config.md[/cyan]            Main config — models, safety, "
+            "context overflow, session options\n"
+            "  [cyan]user_profile.md[/cyan]      Your name, preferences, projects "
+            "(injected into every system prompt)\n"
+            "  [cyan]viable_models.md[/cyan]     All models with size, role, capabilities, "
+            "and hardware fit scores\n"
+            "  [cyan]model_roles.md[/cyan]       Which model handles which role "
+            "(instruct, reasoning, coding, fast, vision)\n"
+            "  [cyan]vision_config.md[/cyan]     Vision pipeline settings "
+            "(strategy, model, fallback behavior)\n"
+            "  [cyan]network_config.md[/cyan]    Remote Ollama nodes "
+            "(add IPs/hostnames of other machines)\n"
+            "  [cyan]network_trust.md[/cyan]     Remembered trust decisions "
+            "for remote models\n"
+            "  [cyan]session_state.md[/cyan]     Live session info "
+            "(auto-written, active model, token count)\n"
+            "  [cyan]memory/[/cyan]\n"
+            "    [cyan]persistent_memory.md[/cyan]  Long-term facts across sessions\n"
+            "    [cyan]context_summary.md[/cyan]    Rolling summary from previous session\n"
             "\n"
-            "[bold]Security settings[/bold] (edit [cyan]config.md[/cyan] in /settings)\n"
-            "\n"
-            f"  bash_require_confirm:       [yellow]{self.config.bash_require_confirm}[/yellow]"
-            "  — require y/n before every command\n"
-            f"  bash_restrict_to_workspace: [yellow]{self.config.bash_restrict_to_workspace}[/yellow]"
-            "  — block commands outside workspace\n"
-            f"  bash_warn_destructive:      [yellow]{self.config.bash_warn_destructive}[/yellow]"
-            "  — flag dangerous commands\n"
-            "  bash_exclude_commands:       hard-blocked patterns (always enforced)\n"
-            "\n"
-            "  To change: [cyan]/settings[/cyan] → open [cyan]config.md[/cyan] → "
-            "edit the value → [cyan]Ctrl+S[/cyan] → [cyan]Esc[/cyan]"
+            "[bold]Security settings[/bold]  [dim](in config.md)[/dim]\n"
+            f"  bash_require_confirm:       "
+            f"[yellow]{self.config.bash_require_confirm}[/yellow]"
+            "   require y/n before every command\n"
+            f"  bash_restrict_to_workspace: "
+            f"[yellow]{self.config.bash_restrict_to_workspace}[/yellow]"
+            "   block commands outside workspace\n"
+            f"  bash_warn_destructive:      "
+            f"[yellow]{self.config.bash_warn_destructive}[/yellow]"
+            "   flag dangerous commands\n"
+            "  bash_exclude_commands:       "
+            "hard-blocked patterns (always enforced)\n"
         )
         self._ui_add_system_message(help_text)
 
