@@ -126,8 +126,8 @@ Everything runs on your machine. No cloud APIs. No data leaves the box.
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/matrx2000/Ora.git
-cd Ora
+git clone https://github.com/matrx2000/Project-ORA.git
+cd Project-ORA
 chmod +x install.sh
 ./install.sh
 ```
@@ -168,10 +168,20 @@ python main.py
 On first launch, Ora runs an interactive **Wakeup Wizard** that walks you through
 the entire initial configuration. Here is what to expect:
 
-### Step 1 — Safety Acknowledgement
+### Step 0 — Safety Acknowledgement
 
 You will see the full safety warning. You must type exactly `I UNDERSTAND` to proceed.
 This is non-negotiable — Ora has real access to your system.
+
+### Step 1 — Workspace Location
+
+Ora asks where to store its configuration and memory files. The default is your OS
+user-data directory (`~/.local/share/ora-os/` on Linux, `%LOCALAPPDATA%\OraOS\ora-os\`
+on Windows), which keeps private files out of any git repository.
+
+You can accept the default or enter a custom path. If the chosen path is inside a git
+repository and not covered by `.gitignore`, Ora will warn you and offer to add it
+automatically — it will not proceed until the path is safe.
 
 ### Step 2 — Ollama Scan
 
@@ -187,8 +197,8 @@ This model runs the wizard itself — it needs to be available right now.
 ### Step 4 — Hardware Detection
 
 Ora probes your CPU, RAM, and GPU (NVIDIA via `pynvml`, AMD via `rocm-smi`, Apple Silicon
-via `system_profiler`). The results are written to `workspace/hardware_profile.md` and used
-to determine which models fit in your VRAM/RAM.
+via `system_profiler`). The results are written to `hardware_profile.md` in the workspace
+and used to determine which models fit in your VRAM/RAM.
 
 ### Step 5 — Hardware Tier / Model Configuration
 
@@ -223,7 +233,7 @@ Ora can tailor its responses.
 
 ### Done
 
-All configuration is written to the `workspace/` directory as plain markdown files.
+All configuration is written to the workspace directory as plain markdown files.
 You can edit any of them at any time — between sessions or even during a session with
 `/settings`. Ora then launches into its main agent loop.
 
@@ -232,7 +242,7 @@ You can edit any of them at any time — between sessions or even during a sessi
 ## Project Structure
 
 ```
-Ora/
+Project-ORA/
 |-- main.py                  # Entry point: boot sequence, agent loop, /settings mode
 |-- boot.py                  # First-run wakeup wizard with tier presets
 |-- bash_tool.py             # Restricted shell execution with confirmation
@@ -245,8 +255,9 @@ Ora/
 |   |-- context_manager.py   # Token counting, overflow detection, summarisation
 |   |-- network_scanner.py   # Remote Ollama node discovery and trust
 |   |-- vision_router.py     # Image/file detection, two-stage vision pipeline
+|   |-- workspace_resolver.py # Locates workspace via platformdirs, git safety checks
 |
-|-- workspace/               # All persistent state (created on first run)
+|-- workspace/               # All persistent state (lives outside repo by default, see below)
 |   |-- config.md            # Main agent configuration
 |   |-- user_profile.md      # User name, preferences, projects
 |   |-- hardware_profile.md  # Auto-generated hardware snapshot
@@ -266,6 +277,7 @@ Ora/
 |   |-- network_spec.md      # Remote Ollama discovery and trust system
 |   |-- settings_spec.md     # /settings conversational configuration mode
 |   |-- multimodal_spec.md   # Vision pipeline, hardware tier presets
+|   |-- workspace_location_spec.md  # Workspace location, platformdirs, git safety
 ```
 
 ---
@@ -280,6 +292,7 @@ The design of every subsystem is documented in detail in the `specs/` directory:
 | [network_spec.md](specs/network_spec.md) | Remote Ollama node discovery, model scoring vs local, per-session trust approvals, remote model system prompt restrictions, offline fallback |
 | [settings_spec.md](specs/settings_spec.md) | `/settings` conversational configuration mode, diff-and-confirm workflow, what can and cannot be changed mid-session |
 | [multimodal_spec.md](specs/multimodal_spec.md) | Vision routing pipeline, two-stage describe-then-reason strategy, capabilities column in viable_models.md, hardware tier presets, graceful failure cases |
+| [workspace_location_spec.md](specs/workspace_location_spec.md) | Workspace stored outside the repo via `platformdirs`, git safety checks, boot wizard workspace selection, `workspace.conf` pointer file |
 
 These specs are the source of truth for how each feature is designed and should behave.
 If you want to understand why something works the way it does, start here.
