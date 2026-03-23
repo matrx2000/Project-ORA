@@ -89,7 +89,9 @@ def _is_blocked(command: str, extra_blocked: list[str]) -> str | None:
         if pattern.search(command):
             return pattern.pattern
     for blocked in extra_blocked:
-        if blocked and blocked in command:
+        if not blocked or len(blocked) < 3:
+            continue  # skip patterns that are too short (e.g. "/" alone)
+        if blocked in command:
             return f"config-blocked: {blocked}"
     return None
 
@@ -116,9 +118,6 @@ def make_run_bash_tool(
     confirm_callback: optional callable(command: str, is_destructive: bool) -> bool
         When provided, used instead of console-based Confirm.ask (for TUI mode).
     """
-    extra_blocked: list[str] = getattr(config, "bash_exclude_commands", [])
-    restrict_to_ws: bool = getattr(config, "bash_restrict_to_workspace", True)
-    warn_destructive: bool = getattr(config, "bash_warn_destructive", True)
     ws_path: str = str(workspace_dir.resolve()) if workspace_dir else ""
 
     def run_bash(command: str) -> str:
@@ -135,6 +134,11 @@ def make_run_bash_tool(
         Returns:
             Command stdout + stderr, or an error/rejection message.
         """
+        # Read config live on every call so /settings changes take effect
+        extra_blocked: list[str] = getattr(config, "bash_exclude_commands", [])
+        restrict_to_ws: bool = getattr(config, "bash_restrict_to_workspace", True)
+        warn_destructive: bool = getattr(config, "bash_warn_destructive", True)
+
         command = command.strip()
         if not command:
             return "Error: empty command."
