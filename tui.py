@@ -415,11 +415,23 @@ class OraApp(App):
             config, workspace_dir=workspace_dir,
             confirm_callback=self._request_confirm,
         )
+        def _on_specialist_token(token: str, is_thinking: bool) -> None:
+            """Stream specialist model tokens to the thinking panel."""
+            if is_thinking:
+                if not self._thinking_widget:
+                    self.call_from_thread(self._ui_start_thinking)
+                self.call_from_thread(self._ui_append_thinking, token)
+            else:
+                # Show specialist content in thinking panel too (it's a tool result)
+                if self._thinking_widget:
+                    self.call_from_thread(self._ui_finish_thinking)
+
         switch_model_fn = make_switch_model_tool(
             workspace_dir, config.ollama_base_url, self.active_model_ref,
             config.require_user_confirm_switch, None,
             session_decisions=self.session_decisions,
             scored_remote_models=self.scored_remote,
+            on_specialist_token=_on_specialist_token,
         )
 
         @lc_tool

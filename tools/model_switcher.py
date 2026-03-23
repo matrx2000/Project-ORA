@@ -184,6 +184,68 @@ def _call_remote_model(node_address, model_name, role, task_prompt, transfer_con
         return False, str(exc)
 
 
+def _call_specialist_streaming(
+    ollama_base_url: str,
+    model: str,
+    messages: list[dict],
+    on_token=None,
+) -> str:
+    """
+    Call a specialist model via Ollama's native /api/chat with streaming.
+    Pipes thinking and content tokens through on_token(text, is_thinking) callback.
+    Returns the full response content.
+    """
+    import httpx
+    import json as _json
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+        "think": True,
+        "keep_alive": "0s",
+    }
+
+    content_parts = []
+    in_thinking = False
+
+    with httpx.Client(timeout=120) as client:
+        with client.stream(
+            "POST",
+            ollama_base_url.rstrip("/") + "/api/chat",
+            json=payload,
+        ) as resp:
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                try:
+                    data = _json.loads(line)
+                except (ValueError, _json.JSONDecodeError):
+                    continue
+
+                msg = data.get("message", {})
+                thinking = msg.get("thinking", "")
+                content = msg.get("content", "")
+
+                if thinking and on_token:
+                    if not in_thinking:
+                        in_thinking = True
+                    on_token(thinking, True)
+
+                if content:
+                    if in_thinking and on_token:
+                        in_thinking = False
+                    content_parts.append(content)
+                    if on_token:
+                        on_token(content, False)
+
+                if data.get("done", False):
+                    break
+
+    return "".join(content_parts)
+
+
 def make_switch_model_tool(
     workspace_dir,
     ollama_base_url: str,
@@ -192,6 +254,7 @@ def make_switch_model_tool(
     console: Console | None,
     session_decisions: dict | None = None,
     scored_remote_models: list | None = None,
+    on_specialist_token=None,
 ):
     """
     Factory that returns a switch_model function bound to current session state.
@@ -199,6 +262,7 @@ def make_switch_model_tool(
 
     session_decisions: {(node_label, model): "approved"|"declined"} from network scan
     scored_remote_models: list of ScoredRemoteModel from network scan
+    on_specialist_token: optional callback(token: str, is_thinking: bool) for streaming
 
     console may be None (TUI mode). In that case, status messages are skipped
     and confirmation prompts are auto-approved.
@@ -291,31 +355,28 @@ def make_switch_model_tool(
             f"[dim]  [switch] {current_model} -> {target_model} (role: {role})[/dim]"
         )
 
-        # Call specialist via Ollama's OpenAI-compatible endpoint
-        client = OpenAI(
-            base_url=ollama_base_url.rstrip("/") + "/v1",
-            api_key="ollama",
-        )
+        # Call specialist via Ollama's native API (streaming for thinking visibility)
+        import httpx
+
+        specialist_messages = [
+            {
+                "role": "system",
+                "content": (
+                    f"You are a specialist assistant. "
+                    f"Role: {role}. "
+                    f"Context from primary agent:\n{transfer_context}"
+                ),
+            },
+            {"role": "user", "content": task_prompt},
+        ]
+
         try:
-            response = client.chat.completions.create(
-                model=target_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            f"You are a specialist assistant. "
-                            f"Role: {role}. "
-                            f"Context from primary agent:\n{transfer_context}"
-                        ),
-                    },
-                    {"role": "user", "content": task_prompt},
-                ],
-                extra_body={"keep_alive": "0s"},  # unload immediately after call
+            result = _call_specialist_streaming(
+                ollama_base_url, target_model, specialist_messages,
+                on_specialist_token,
             )
         except Exception as exc:
             return f"Error calling specialist model {target_model}: {exc}"
-
-        result = response.choices[0].message.content or ""
 
         # Log the switch
         _append_switch_log(workspace_dir, current_model, target_model, f"{role} role requested")
