@@ -10,9 +10,48 @@ Linux system autonomously.
 
 Everything runs on your machine. No cloud APIs. No data leaves the box.
 
-> **WARNING** — O.R.A. has unrestricted access to the Linux filesystem and can install
+> **WARNING** — Ora OS has unrestricted access to the Linux filesystem and can install
 > packages, manage processes, and modify system state. **Run it on a dedicated machine
 > that does not contain personal data.** Do not run it on your daily driver.
+>
+> **Do not install or use this software if you don't understand and regularly use terms like:**
+>
+> **Linux & systems:**
+> `sudo`, `root`, `systemctl`, `ssh`, `chmod`, `kill -9`, `cron`, `daemon`, `PID`,
+> `iptables`, `/etc/fstab`, `apt`, `dd`, `partition table`, `port forwarding`,
+> `.bashrc`, `environment variables`
+>
+> **AI & LLMs:**
+> `LLM`, `inference`, `VRAM`, `quantization`, `context window`, `tokens`,
+> `hallucination`, `prompt injection`, `model parameters`, `temperature`,
+> `system prompt`
+>
+> **Privacy & security:**
+> `PII`, `doxing`, `credential leakage`, `attack surface`, `exfiltration`,
+> `network exposure`, `plaintext secrets`, `log sanitization`
+>
+> **Why this matters:**
+>
+> - **LLMs hallucinate.** A model can confidently propose a command that looks correct
+>   but destroys data. You need to be able to read every command and judge it yourself
+>   before pressing `y`.
+> - **LLMs don't understand privacy.** If your system contains personal data, API keys,
+>   or credentials, a model might read them, echo them in a response, or write them to
+>   a session log in plain text — without knowing it did anything wrong.
+> - **Self-doxing is real.** Ora reads your filesystem and writes session logs. If you
+>   run it on a machine with personal files and later share those logs, workspace files,
+>   or even your config, you could expose your real name, IP addresses, directory
+>   structure, hostnames, SSH keys, or browser history without realizing it.
+> - **Prompt injection is real.** If Ora reads a file or web content that contains hidden
+>   instructions, the model might follow those instructions instead of yours. You need to
+>   recognize when that's happening.
+> - **Local doesn't mean safe.** No data leaves your machine, but the agent still has full
+>   access to everything on it. A local model with `sudo` access can do just as much
+>   damage as a remote attacker.
+>
+> **This tool is built for system administrators and developers who already manage Linux
+> machines and understand how LLMs behave.** If any of the terms above are unfamiliar,
+> learn them first — or experiment in a virtual machine where nothing important is at risk.
 
 ---
 
