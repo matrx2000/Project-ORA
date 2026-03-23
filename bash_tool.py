@@ -24,11 +24,12 @@ _ALLOWED_PATTERNS: list[re.Pattern] = [
     # Networking
     re.compile(r"^(curl|wget|ssh|ping|nmap|ip|netstat|ss|dig|host)\b"),
     # General utilities
-    re.compile(r"^(echo|grep|awk|sed|sort|wc|tar|unzip|gzip|gunzip|which|env|"
+    re.compile(r"^(echo|printf|grep|awk|sed|sort|wc|tar|unzip|gzip|gunzip|which|env|"
                r"head|tail|less|more|diff|patch|ln|realpath|basename|dirname|"
-               r"date|uptime|uname|hostname|id|whoami|groups|pwd)\b"),
-    # Text editors / viewers
-    re.compile(r"^(nano|vim|vi|nvim|emacs|less|more)\b"),
+               r"date|uptime|uname|hostname|id|whoami|groups|pwd|xargs|tee|"
+               r"tr|cut|paste|comm|join|split|csplit|nl|fmt|fold|pr|column)\b"),
+    # File read/write helpers
+    re.compile(r"^(nano|vim|vi|nvim|emacs|less|more|rm|touch|cat|tee)\b"),
     # Python / node / shell scripts
     re.compile(r"^(python3?|node|bash|sh|zsh|fish)\b"),
     # Ollama

@@ -182,7 +182,11 @@ memory: {workspace_dir / "memory"}
 {persistent_memory}
 
 [tools]
-- run_bash(command): execute a Linux shell command (requires user confirmation)
+- run_bash(command): execute a Linux shell command (requires user confirmation).
+  To read files use: cat <path>
+  To write files use: echo "content" > <path>  or  tee <path> for multi-line
+  To append use: echo "content" >> <path>
+  To create directories use: mkdir -p <path>
 - switch_model(role, task_prompt, transfer_context): delegate a sub-task to a specialist
   model. role must be one of the roles defined in model_roles.md. Write transfer_context
   in <=500 tokens — only what the specialist needs to know. Their response returns as a
