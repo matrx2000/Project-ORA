@@ -46,7 +46,7 @@ When the user types `/settings`, a full-screen popup overlay appears:
 | [directory tree] |                                        |
 |  config.md       |  [full-size TextArea editor]           |
 |  user_profile.md |                                        |
-|  model_roles.md  |                                        |
+|  models.md       |                                        |
 |  ...             |                                        |
 +------------------+----------------------------------------+
 |                   [Save]  [Close]                         |

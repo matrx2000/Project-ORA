@@ -20,7 +20,7 @@ the instruct model for reasoning and action.
 - The LLM never decides whether an image is present — the Python routing layer does.
 - Vision and instruct are always separate models — one sees the image, one reasons about it.
 - If no vision model is configured, Ora responds gracefully rather than silently failing.
-- The capability flag in `viable_models.md` is the single source of truth for what each
+- The capability flag in `models.md` is the single source of truth for what each
   model can handle.
 - This design works identically for local and remote models — a remote vision model on
   the network is valid and follows the same routing logic.
@@ -29,43 +29,39 @@ the instruct model for reasoning and action.
 
 ## Changes to Existing Files
 
-### `workspace/viable_models.md` — add `capabilities` column
+### `workspace/models.md` — add vision role and `capabilities` field
 
-```markdown
-# Viable Models
-
-| model              | size_gb | role      | capabilities  | notes                          | auto_pull |
-|--------------------|---------|-----------|---------------|--------------------------------|-----------|
-| qwen3:4b           | 2.5     | instruct  | text          | default model, strong tool use | yes       |
-| qwen2.5-vl:3b      | 2.0     | vision    | text,images   | vision model, Jetson-optimised | yes       |
-| deepseek-r1:1.5b   | 1.0     | reasoning | text          | light reasoning, slow          | yes       |
-| phi4-mini:3.8b     | 2.3     | fast      | text          | fast alternative instruct      | yes       |
-```
+Each role entry in `models.md` now includes a `capabilities` field. The routing layer reads
+this field before every call. A model with only `text` capability will never receive image
+data regardless of what the user sends.
 
 **Valid capability values:**
 - `text` — text only, cannot process images
 - `text,images` — multimodal, can process both text and images
 
-The routing layer reads this column before every call. A model with only `text` capability
-will never receive image data regardless of what the user sends.
-
----
-
-### `workspace/model_roles.md` — add vision role
+Add the vision role to `models.md`:
 
 ```markdown
 ### vision
 model: qwen2.5-vl:3b
+description: Vision model — describes images for the instruct model
 capabilities: text,images
 use_when: >
   The user has attached an image, screenshot, photo, or visual file.
   This model describes the visual content as detailed text, which is then
   passed to the instruct model for reasoning and action.
   Do NOT use for text-only tasks — it is weaker at reasoning than the instruct model.
-example_trigger: "user uploads screenshot", "user attaches photo", "user sends image file"
-vision_strategy: describe_then_reason
-  # describe_then_reason: vision model describes → instruct model reasons (default)
-  # vision_handles_all:   vision model handles the full response (simple visual Q&A only)
+```
+
+Example of how capability fields look on existing roles:
+
+```markdown
+### instruct
+model: qwen3:4b
+description: Default general-purpose instruct model
+capabilities: text
+use_when: >
+  Default model for all text tasks, tool use, and reasoning when no specialist is needed.
 ```
 
 ---
@@ -106,9 +102,9 @@ unsupported_extensions: .pdf, .docx, .xlsx, .zip
 ## Fallback behaviour when no vision model is configured
 no_vision_model_response: >
   I received an image but no vision-capable model is configured.
-  To enable image understanding, add a model with capabilities: text,images
-  to workspace/viable_models.md and assign it the 'vision' role in model_roles.md.
-  Suggested model for your hardware: qwen2.5-vl:3b
+  To enable image understanding, add a 'vision' role entry with capabilities: text,images
+  to workspace/models.md and assign it a vision-capable Ollama model.
+  Suggested model: qwen2.5-vl:3b
 ```
 
 ---
@@ -238,61 +234,14 @@ simple image questions and don't need tool use or complex reasoning.
 
 ---
 
-## Hardware Tier Presets
-
-### Jetson Orin Nano Super 8GB (this hardware)
-
-Memory budget: ~5.5GB usable for models (OS + Ollama overhead ~2.5GB)
-Only one model loaded at a time — Ollama hot-swaps between calls.
-
-```markdown
-| model            | size_gb | role      | capabilities | fits   |
-|------------------|---------|-----------|--------------|--------|
-| qwen3:4b         | 2.5     | instruct  | text         | ✅     |
-| qwen2.5-vl:3b    | 2.0     | vision    | text,images  | ✅     |
-| deepseek-r1:1.5b | 1.0     | reasoning | text         | ✅     |
-| phi4-mini:3.8b   | 2.3     | fast      | text         | ✅     |
-```
-
-All four fit individually. They cannot co-load — Ollama unloads between calls.
-Token speed estimate on Jetson: ~20-35 tok/s for 3-4B models at Q4 quantization.
-
-### Mid-range desktop (e.g. RTX 3080 10GB)
-
-```markdown
-| model                | size_gb | role      | capabilities | fits   |
-|----------------------|---------|-----------|--------------|--------|
-| qwen3:8b             | 5.0     | instruct  | text         | ✅     |
-| qwen2.5-vl:7b        | 5.0     | vision    | text,images  | ✅     |
-| deepseek-r1:7b       | 4.5     | reasoning | text         | ✅     |
-| qwen3:4b             | 2.5     | fast      | text         | ✅     |
-```
-
-qwen3:8b + qwen2.5-vl:7b cannot co-load (10GB total). Hot-swap required.
-
-### High-end desktop (e.g. RTX 4090 24GB)
-
-```markdown
-| model                | size_gb | role      | capabilities | fits   |
-|----------------------|---------|-----------|--------------|--------|
-| qwen3-coder:30b      | 18.5    | instruct  | text         | ✅     |
-| qwen2.5-vl:7b        | 5.0     | vision    | text,images  | ✅     |
-| deepseek-r1:14b      | 9.0     | reasoning | text         | ✅     |
-| qwen3:4b             | 2.5     | fast      | text         | ✅     |
-```
-
-qwen3-coder:30b + qwen2.5-vl:7b = 23.5GB → ✅ can co-load on 24GB VRAM.
-Vision pipeline runs without unloading the instruct model — faster two-stage calls.
-
 ---
 
 ## Graceful Failure Cases
 
 | Situation | Ora's response |
 |---|---|
-| Image uploaded, no vision model in `viable_models.md` | Prints `no_vision_model_response` from `vision_config.md`, suggests `qwen2.5-vl:3b` |
-| Vision model listed but not pulled in Ollama | Offers to pull it via `pull_model()` if `auto_pull: yes`, otherwise notifies user |
-| Vision model listed but doesn't fit in VRAM/RAM | Falls back to text-only response, notifies user |
+| Image uploaded, no vision role in `models.md` | Prints `no_vision_model_response` from `vision_config.md`, suggests `qwen2.5-vl:3b` |
+| Vision model assigned but not pulled in Ollama | Offers to pull it via `pull_model()`, otherwise notifies user |
 | Unsupported file type (.pdf, .docx) | Notifies user, lists supported types, notes PDF support planned for v2 |
 | Text file attached (.py, .log, .md) | Reads file content directly as text, no vision model needed |
 | Image too large (>10MB) | Warns user, attempts anyway, catches OOM error gracefully |
@@ -307,10 +256,9 @@ Vision pipeline runs without unloading the instruct model — faster two-stage c
 | PNG, JPG, WEBP, GIF image routing | PDF text extraction and processing |
 | Two-stage describe-then-reason pipeline | OCR on scanned documents |
 | Plain text file injection (.py, .log, .md) | Audio / video file processing |
-| Per-model capability flag in viable_models.md | Automatic capability detection from model metadata |
-| Graceful fallback when no vision model configured | Multi-image batching in a single call |
+| Per-model capability flag in models.md | Automatic capability detection from model metadata |
+| Graceful fallback when no vision role configured | Multi-image batching in a single call |
 | Remote vision model support (via network_spec) | Real-time camera / video stream input |
-| Hardware tier presets in docs | Auto hardware-tier detection and preset selection |
 
 ---
 

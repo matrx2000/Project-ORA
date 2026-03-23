@@ -36,10 +36,15 @@ from main import (
 )
 from bash_tool import make_run_bash_tool
 from tools.model_switcher import make_switch_model_tool
-from tools.ollama_manager import list_models as _list_models, pull_model as _pull_model
+from tools.ollama_manager import pull_model as _pull_model
 from tools.context_manager import check_and_compact
 from tools.vision_router import route_user_message
 from tools.workspace_resolver import get_config_dir
+
+
+class _CancelledError(Exception):
+    """Raised inside the graph when the user cancels generation."""
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +171,7 @@ class SettingsScreen(ModalScreen[bool]):
         super().__init__()
         self.workspace_dir = workspace_dir
         self._current_file = ""
+        self._preload_file = ""  # set before push_screen to auto-open a file
 
     def compose(self) -> ComposeResult:
         with Vertical(id="settings-container"):
@@ -182,6 +188,15 @@ class SettingsScreen(ModalScreen[bool]):
             with Horizontal(id="settings-bar"):
                 yield Button("Save", id="ssave-btn", variant="success")
                 yield Button("Close", id="sclose-btn", variant="error")
+
+    def on_mount(self) -> None:
+        if self._preload_file and Path(self._preload_file).exists():
+            path = Path(self._preload_file)
+            self._current_file = str(path)
+            self.query_one("#sfile-label", Static).update(f" {path.name}")
+            self.query_one("#seditor", TextArea).load_text(
+                path.read_text(encoding="utf-8")
+            )
 
     @on(DirectoryTree.FileSelected, "#stree")
     def on_file_selected(self, event: DirectoryTree.FileSelected) -> None:
@@ -308,6 +323,7 @@ class OraApp(App):
         Binding("f1", "show_help", "Help", show=True),
         Binding("f2", "open_settings", "Settings", show=True),
         Binding("f3", "clear_panels", "Clear", show=True),
+        Binding("ctrl+c", "cancel_generation", "Stop", show=True),
         Binding("ctrl+q", "quit", "Quit", show=True),
     ]
 
@@ -331,6 +347,7 @@ class OraApp(App):
         self._think_buffer = ""
         self._streaming_widget: Static | None = None
         self._thinking_widget: Static | None = None
+        self._cancel_requested = False  # set True by Ctrl+C / Escape during generation
 
         # Agent graph built in on_mount (needs self for callbacks)
         self.agent_graph = None
@@ -408,8 +425,9 @@ class OraApp(App):
 
         @lc_tool
         def list_models() -> str:
-            """Show viable_models.md with live hardware fit scores."""
-            return _list_models(workspace_dir, None, config.ollama_base_url)
+            """Show current model-to-role assignments from models.md."""
+            path = workspace_dir / "models.md"
+            return path.read_text(encoding="utf-8") if path.exists() else "No models.md found."
 
         @lc_tool
         def pull_model(model_name: str) -> str:
@@ -456,6 +474,15 @@ class OraApp(App):
             has_content = False
 
             for chunk in llm_with_tools.stream(state["messages"]):
+                # Check cancellation flag
+                if app._cancel_requested:
+                    if in_think:
+                        app.call_from_thread(app._ui_finish_thinking)
+                    if has_content:
+                        app.call_from_thread(app._ui_append_response, " [cancelled]")
+                        app.call_from_thread(app._ui_finish_response)
+                    raise _CancelledError()
+
                 if full_response is None:
                     full_response = chunk
                 else:
@@ -625,6 +652,16 @@ class OraApp(App):
             self.query_one("#user-input", Input).focus()
         self.push_screen(SettingsScreen(self.workspace_dir), callback=on_dismiss)
 
+    def _open_models(self) -> None:
+        """Open settings popup with models.md pre-loaded."""
+        def on_dismiss(result: bool) -> None:
+            self.config = load_config(self.workspace_dir)
+            self._ui_add_system_message("Models updated. Config reloaded.")
+            self.query_one("#user-input", Input).focus()
+        screen = SettingsScreen(self.workspace_dir)
+        screen._preload_file = str(self.workspace_dir / "models.md")
+        self.push_screen(screen, callback=on_dismiss)
+
     def action_open_settings(self) -> None:
         """Triggered by F2 keybinding."""
         self._open_settings()
@@ -632,6 +669,14 @@ class OraApp(App):
     def action_show_help(self) -> None:
         """Triggered by F1 keybinding."""
         self._show_help()
+
+    def action_cancel_generation(self) -> None:
+        """Triggered by Ctrl+C. Aborts the current LLM response."""
+        if self._cancel_requested:
+            return  # already cancelling
+        self._cancel_requested = True
+        self._ui_add_system_message("[bold yellow]Cancelled.[/bold yellow] Reformulate your message.")
+        self._enable_input()
 
     def action_clear_panels(self) -> None:
         """Triggered by F3 keybinding or /clear command."""
@@ -674,6 +719,10 @@ class OraApp(App):
             self._clear_panels()
             return
 
+        if lower == "/models":
+            self._open_models()
+            return
+
         if lower.startswith("/settings"):
             self._open_settings()
             return
@@ -689,7 +738,9 @@ class OraApp(App):
             "[bold]Commands[/bold]\n"
             "  [cyan]/help[/cyan]         Show this help          [dim](or F1)[/dim]\n"
             "  [cyan]/settings[/cyan]     Open settings popup     [dim](or F2)[/dim]\n"
+            "  [cyan]/models[/cyan]       Edit model roles        [dim](opens models.md)[/dim]\n"
             "  [cyan]/clear[/cyan]        Clear chat & thinking   [dim](or F3)[/dim]\n"
+            "  [cyan]Ctrl+C[/cyan]        Stop current generation\n"
             "  [cyan]exit[/cyan]          Save session and quit   [dim](or Ctrl+Q)[/dim]\n"
             "\n"
             "[bold]Settings popup[/bold]\n"
@@ -701,10 +752,8 @@ class OraApp(App):
             "context overflow, session options\n"
             "  [cyan]user_profile.md[/cyan]      Your name, preferences, projects "
             "(injected into every system prompt)\n"
-            "  [cyan]viable_models.md[/cyan]     All models with size, role, capabilities, "
-            "and hardware fit scores\n"
-            "  [cyan]model_roles.md[/cyan]       Which model handles which role "
-            "(instruct, reasoning, coding, fast, vision)\n"
+            "  [cyan]models.md[/cyan]             Model-to-role assignments "
+            "(instruct, reasoning, coding, fast, vision, bootstrap)\n"
             "  [cyan]vision_config.md[/cyan]     Vision pipeline settings "
             "(strategy, model, fallback behavior)\n"
             "  [cyan]network_config.md[/cyan]    Remote Ollama nodes "
@@ -753,11 +802,17 @@ class OraApp(App):
             return
 
         self.messages.append(HumanMessage(content=vr.message))
+        self._cancel_requested = False
 
         try:
             result = self.agent_graph.invoke({"messages": self.messages})
             self.messages = result["messages"]
+        except _CancelledError:
+            self._cancel_requested = False
+            self.call_from_thread(self._enable_input)
+            return
         except Exception as exc:
+            self._cancel_requested = False
             self.call_from_thread(
                 self._ui_add_system_message, f"Agent error: {exc}"
             )

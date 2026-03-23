@@ -143,7 +143,7 @@ def _build_system_prompt(
     approved_remote_models: list[ScoredRemoteModel] | None = None,
 ) -> str:
     user_profile = _load_text(workspace_dir / "user_profile.md")
-    model_roles = _load_text(workspace_dir / "model_roles.md")
+    model_roles = _load_text(workspace_dir / "models.md")
     persistent_memory = _load_text(workspace_dir / "memory" / "persistent_memory.md")
     context_summary = _load_text(workspace_dir / "memory" / "context_summary.md")
 
@@ -210,10 +210,10 @@ memory: {workspace_dir / "memory"}
   To append use: echo "content" >> <path>
   To create directories use: mkdir -p <path>
 - switch_model(role, task_prompt, transfer_context): delegate a sub-task to a specialist
-  model. role must be one of the roles defined in model_roles.md. Write transfer_context
+  model. role must be one of the roles defined in models.md. Write transfer_context
   in <=500 tokens — only what the specialist needs to know. Their response returns as a
   tool result.
-- list_models(): show viable_models.md with live hardware fit scores
+- list_models(): show current model-to-role assignments from models.md
 - pull_model(model_name): pull a new model from Ollama (requires user confirmation)
 - show_paths(): show where O.R.A. stores workspace, config, and memory files on this system
 
@@ -250,8 +250,7 @@ Available workspace files you can read and modify:
 - workspace/config.md — main agent config (models, safety, context, session settings)
 - workspace/network_config.md — remote Ollama nodes and model descriptions
 - workspace/network_trust.md — remembered trust decisions for remote models
-- workspace/viable_models.md — list of models the agent can use
-- workspace/model_roles.md — role-to-model assignments
+- workspace/models.md — model-to-role assignments (single source of truth)
 - workspace/user_profile.md — user name, timezone, preferences
 - workspace/memory/persistent_memory.md — long-term facts and notes
 
@@ -272,11 +271,11 @@ def _parse_settings_focus(user_input: str) -> str | None:
 
 _SETTINGS_CONTEXT_FILES = {
     "network": ["network_config.md", "network_trust.md"],
-    "models": ["viable_models.md", "model_roles.md"],
+    "models": ["models.md"],
     "profile": ["user_profile.md"],
     "safety": ["config.md"],
     "memory": ["config.md", "memory/persistent_memory.md"],
-    "vision": ["vision_config.md", "viable_models.md"],
+    "vision": ["vision_config.md", "models.md"],
 }
 
 # Auto-generated files that settings mode must not write to
@@ -911,7 +910,7 @@ def main():
     def switch_model(role: str, task_prompt: str, transfer_context: str) -> str:
         """
         Delegate a sub-task to a specialist model.
-        role: reasoning | coding | fast (or any role in model_roles.md)
+        role: reasoning | coding | fast (or any role in models.md)
         task_prompt: the specific question/task for the specialist
         transfer_context: compact context summary (<=500 tokens)
         """
@@ -919,8 +918,8 @@ def main():
 
     @lc_tool
     def list_models() -> str:
-        """Show viable_models.md with live hardware fit scores."""
-        return _list_models(workspace_dir, console, config.ollama_base_url)
+        """Show current model-to-role assignments from models.md."""
+        return _load_text(workspace_dir / "models.md") or "No models.md found."
 
     @lc_tool
     def pull_model(model_name: str) -> str:
@@ -941,8 +940,7 @@ def main():
             "Key files:",
             f"  {workspace_dir / 'config.md'}",
             f"  {workspace_dir / 'user_profile.md'}",
-            f"  {workspace_dir / 'viable_models.md'}",
-            f"  {workspace_dir / 'model_roles.md'}",
+            f"  {workspace_dir / 'models.md'}",
             f"  {memory_dir / 'persistent_memory.md'}",
             f"  {memory_dir / 'context_summary.md'}",
         ]

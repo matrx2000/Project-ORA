@@ -23,7 +23,10 @@ def _parse_model_roles(workspace_dir: Path) -> dict[str, dict]:
     """
     Parse workspace/model_roles.md into {role_name: {model, use_when, ...}}.
     """
-    path = workspace_dir / "model_roles.md"
+    # Try models.md first (new format), fall back to model_roles.md (legacy)
+    path = workspace_dir / "models.md"
+    if not path.exists():
+        path = workspace_dir / "model_roles.md"
     if not path.exists():
         return {}
 
@@ -275,10 +278,6 @@ def make_switch_model_tool(
             )
 
         # Local model path
-        fits, fit_reason = _read_hardware_fit(workspace_dir, target_model)
-        if not fits:
-            return f"Error: cannot switch to {target_model} — {fit_reason}"
-
         if require_confirm and console is not None:
             _print(
                 f"\n[bold yellow]MODEL SWITCH[/bold yellow] "

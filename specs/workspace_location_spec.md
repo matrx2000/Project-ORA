@@ -100,8 +100,7 @@ The workspace layout is identical regardless of where it lives:
 ├── config.md
 ├── user_profile.md
 ├── hardware_profile.md
-├── viable_models.md
-├── model_roles.md
+├── models.md
 ├── vision_config.md
 ├── session_state.md
 ├── network_config.md
@@ -120,7 +119,7 @@ During the first-run wizard (`boot.py`), a new step is inserted **before** the
 Ollama connectivity check:
 
 ```
-Step 1/6: Workspace location
+Step 1/5: Workspace location
 
   O.R.A. stores configuration, memory, and session data in a workspace directory.
   By default this is your OS user-data folder, which keeps private files out of

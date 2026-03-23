@@ -57,7 +57,7 @@ remote model so the local LLM understands what it is dealing with when routing t
 
 ## Remote Model Descriptions
 ## These descriptions are injected into Ora's system prompt so it understands
-## what each remote model is good for — same format as local model_roles.md
+## what each remote model is good for — same format as local models.md
 
 | node          | model                | role        | description                                              |
 |---------------|----------------------|-------------|----------------------------------------------------------|
@@ -211,7 +211,7 @@ Role resolution now checks remote candidates in addition to local ones.
 
 **Resolution order:**
 
-1. Check local `viable_models.md` for a model matching the role — this is always the
+1. Check local `models.md` for a model matching the role — this is always the
    default candidate.
 2. Check `network_registry.md` for remote models matching the role that are:
    - Node: online
@@ -251,7 +251,7 @@ Ora retries the task locally, logs the failure, and continues without interrupti
 ## Remote Model Descriptions in System Prompt
 
 The descriptions from `network_config.md` → `Remote Model Descriptions` are injected into
-Ora's system prompt alongside local `model_roles.md`, so the agent can reason about remote
+Ora's system prompt alongside local `models.md`, so the agent can reason about remote
 options when deciding whether to call `switch_model()`:
 
 ```

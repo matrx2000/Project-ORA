@@ -218,41 +218,31 @@ configured manually and pulled later.
 
 ### Step 3 — Bootstrap Model
 
-You pick a small model that is already pulled in Ollama (e.g. `qwen3:4b` or `phi4-mini`).
-This model runs the wizard itself — it needs to be available right now.
+Pick a model already pulled in Ollama to run the wizard (recommended: `ministral-3b`).
 
-### Step 4 — Hardware Detection
+### Step 4 — Role Assignment
 
-Ora probes your CPU, RAM, and GPU (NVIDIA via `pynvml`, AMD via `rocm-smi`, Apple Silicon
-via `system_profiler`). The results are written to `hardware_profile.md` in the workspace
-and used to determine which models fit in your VRAM/RAM.
+Ora scans your locally pulled Ollama models and suggests a role for each one
+(instruct, reasoning, coding, fast, vision) based on the model name. You accept
+or override each suggestion. All assignments are saved to a single `models.md`
+file — no tier presets, no separate viable_models.md.
 
-### Step 5 — Hardware Tier / Model Configuration
+Example:
+```
+  ministral-3b (2.0 GB)
+    Suggested: instruct — General instruct model
+    Role [instruct]: ↵
+    Description [General instruct model]: ↵
 
-This is where you set up your model fleet. You have two options:
+  deepseek-r1:1.5b (1.0 GB)
+    Suggested: reasoning — Deep reasoning and analysis
+    Role [reasoning]: ↵
+```
 
-**Option A — Pick a preset:**
+After setup, change roles any time with `/models` in the TUI or by editing
+`models.md` in `/settings`.
 
-| Tier | Target Hardware | Models |
-|------|----------------|--------|
-| 1 | Jetson / Low-end (<=8GB) | ministral-3b, qwen2.5-vl:3b, deepseek-r1:1.5b, phi4-mini:3.8b |
-| 2 | Mid-range (RTX 3080 ~10GB) | qwen3:8b, qwen2.5-vl:7b, deepseek-r1:7b, qwen3:4b |
-| 3 | High-end (RTX 4090 ~24GB) | qwen3-coder:30b, qwen2.5-vl:7b, deepseek-r1:14b, qwen3:4b |
-
-Each preset configures an instruct model, a vision model, a reasoning model, and a fast
-model — with appropriate sizes for your VRAM budget.
-
-**Option B — Custom configuration:**
-
-Add models one by one. For each model you enter:
-- **Name** — copy-paste from [ollama.com/library](https://ollama.com/library) (e.g. `qwen3:4b`)
-- **Size** — estimated size in GB (auto-detected if already pulled)
-- **Role** — `instruct`, `reasoning`, `coding`, `fast`, `vision`, or `general`
-- **Capabilities** — `text` for text-only models, `text,images` for vision/multimodal models
-- **Description** — what the model is good at (helps Ora route tasks correctly)
-- **Auto-pull** — whether Ora can download this model automatically if it is not yet pulled
-
-### Step 6 — User Profile
+### Step 5 — User Profile
 
 The bootstrap model guides you through a short conversation to set up your user profile
 (name, working style, current projects). This is injected into every system prompt so
@@ -272,7 +262,7 @@ You can edit any of them at any time — between sessions or even during a sessi
 Project-ORA/
 |-- tui.py                   # TUI entry point: three-panel Textual interface
 |-- main.py                  # CLI entry point: classic terminal mode, shared setup logic
-|-- boot.py                  # First-run wakeup wizard with tier presets
+|-- boot.py                  # First-run wakeup wizard (scan-based, no tiers)
 |-- bash_tool.py             # Restricted shell execution with confirmation
 |-- requirements.txt         # Python dependencies
 |
@@ -289,8 +279,7 @@ Project-ORA/
 |   |-- config.md            # Main agent configuration
 |   |-- user_profile.md      # User name, preferences, projects
 |   |-- hardware_profile.md  # Auto-generated hardware snapshot
-|   |-- viable_models.md     # Allowed models with capabilities and fit scores
-|   |-- model_roles.md       # Role-to-model assignments
+|   |-- models.md            # Model-to-role assignments (single source of truth)
 |   |-- vision_config.md     # Vision routing settings
 |   |-- session_state.md     # Live session: active model, token usage, logs
 |   |-- network_config.md    # Remote Ollama nodes (user-created)

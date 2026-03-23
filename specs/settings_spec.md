@@ -26,7 +26,7 @@ types `/done` or `exit settings`.
 |---|---|
 | `/settings` | Enter settings mode |
 | `/settings network` | Enter settings mode focused on network config |
-| `/settings models` | Enter settings mode focused on model roles and viable models |
+| `/settings models` | Enter settings mode focused on model roles (`models.md`) |
 | `/settings profile` | Enter settings mode focused on user profile |
 | `/settings safety` | Enter settings mode focused on bash safety rules |
 | `/settings memory` | Enter settings mode focused on session/memory settings |
@@ -75,24 +75,23 @@ ora: This will delete all rows from network_trust.md Approved and Declined.
      Confirm? [y/N]:
 ```
 
-### Model Settings (`viable_models.md`, `model_roles.md`)
-- Add or remove models from the viable list
+### Model Settings (`models.md`)
+- Add or remove model role assignments
 - Change which model is assigned to a role
-- Update role descriptions
+- Update role descriptions, capabilities, or use_when guidance
 - Change the default model
-- Enable or disable auto-pull for a model
 
 **Example exchanges:**
 ```
 you: set my default reasoning model to deepseek-r1:32b
-ora: I'll update model_roles.md: reasoning → deepseek-r1:32b.
+ora: I'll update models.md: reasoning → deepseek-r1:32b.
      Current: deepseek-r1:14b
      New:     deepseek-r1:32b
      Confirm? [y/N]:
 
-you: add mistral-small:22b to viable models, role fast, auto_pull yes
-ora: I'll add this row to viable_models.md:
-     | mistral-small:22b | 13.0 | fast | — | yes |
+you: add mistral-small:22b as the fast role model
+ora: I'll update the fast role in models.md:
+     model: mistral-small:22b
      Confirm? [y/N]:
 ```
 
@@ -174,7 +173,6 @@ Ora always follows this flow for any settings change:
 ```
 
 Ora never writes to any file in settings mode without a confirmed `y`. Multi-file changes
-(e.g. changing a model role that affects both `model_roles.md` and `viable_models.md`)
 are shown as a combined diff and confirmed in one step.
 
 ---

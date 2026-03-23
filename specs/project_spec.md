@@ -57,8 +57,7 @@ ora_os/
     ├── config.md                  # User-editable agent settings
     ├── user_profile.md            # Persistent user profile (name, preferences, projects)
     ├── hardware_profile.md        # Auto-written on boot
-    ├── viable_models.md           # The "allowed models" list — editable by user or agent
-    ├── model_roles.md             # User-assigned roles and descriptions per model
+    ├── models.md                  # Model roles, capabilities, and assignments — editable by user or agent
     ├── session_state.md           # Live session state (current model, token usage, switches)
     └── memory/
         ├── context_summary.md     # Rolling compressed conversation summary
@@ -76,17 +75,15 @@ terminal wizard that:
 
 1. Displays the **safety warning** in full and requires the user to type `I UNDERSTAND` to
    proceed.
-2. Asks for a **bootstrap model** — the minimal model used to run the wizard itself (e.g.
-   `phi4-mini`). This model must already be pulled in Ollama or small enough to pull quickly.
-   Written to `workspace/config.md` as `bootstrap_model`.
-3. Runs `hardware_probe.py` and writes `workspace/hardware_profile.md`.
-4. Runs `ollama_manager.py` to list all locally pulled models, scores them against hardware,
-   and writes an initial `workspace/viable_models.md`.
+2. Runs `hardware_probe.py` and writes `workspace/hardware_profile.md`.
+3. Runs `ollama_manager.py` to scan all locally pulled Ollama models and displays them to
+   the user.
+4. Asks the user to select a **bootstrap model** from the scanned list — the model used to
+   run the wizard itself. Written to `workspace/config.md` as `bootstrap_model`.
 5. Using the bootstrap model, opens an **interactive prompt session** where the user (and the
    model) can jointly populate:
    - `workspace/user_profile.md` (user name, working style, current projects)
-   - `workspace/model_roles.md` (which model to use for which role)
-   - `workspace/viable_models.md` (confirm or extend the initial model list)
+   - `workspace/models.md` (assign roles to scanned models — reasoning, coding, fast, etc.)
 6. Writes `workspace/config.md` with all settings.
 7. Exits the wizard and launches the main agent loop.
 
@@ -95,7 +92,7 @@ terminal wizard that:
 1. Display safety warning (brief, one-liner).
 2. Load `workspace/config.md`.
 3. Run `hardware_probe.py` (refresh hardware profile — VRAM availability changes between runs).
-4. Load `workspace/viable_models.md` and `workspace/model_roles.md`.
+4. Load `workspace/models.md`.
 5. Load `workspace/user_profile.md` and `workspace/memory/persistent_memory.md`.
 6. Load `workspace/memory/context_summary.md` (previous session summary, injected into
    system prompt).
@@ -151,74 +148,50 @@ workspace_dir: ./workspace
 
 ---
 
-### `workspace/viable_models.md`
-
-The master list of models O.R.A. is permitted to use. Written initially by the wakeup
-wizard; editable by the user at any time; the agent can also append entries if it determines
-a new model would be beneficial (subject to hardware fit check).
-
-If a model in this list is not currently pulled in Ollama, the agent may pull it
-automatically — but only if the model fits within available VRAM/RAM and `auto_pull: yes`.
-
-```markdown
-# Viable Models
-
-## Format
-Each entry: model name | estimated size | role tag | notes | auto-pull allowed
-
-| model                    | size_gb | role        | notes                                      | auto_pull |
-|--------------------------|---------|-------------|--------------------------------------------|-----------|
-| phi4-mini:latest         | 2.5     | bootstrap   | used during first-run wizard               | yes       |
-| qwen3-coder:30b          | 18.5    | coding      | best for code generation and bash tasks    | yes       |
-| deepseek-r1:14b          | 9.0     | reasoning   | use for logic, maths, planning             | yes       |
-| qwen3:4b-instruct        | 2.5     | fast        | quick lookups, low-stakes tasks            | yes       |
-| devstral:latest          | 14.0    | coding      | alternative coder, good at tool use        | no        |
-
-## Notes
-- Models not in this list cannot be loaded by the agent.
-- Set auto_pull: no to prevent the agent from downloading a model without explicit user action.
-- The agent will never load a model that does not fit in available VRAM+RAM.
-```
-
----
-
-### `workspace/model_roles.md`
+### `workspace/models.md`
 
 User-defined role assignments with natural language descriptions that are injected directly
 into the system prompt. This is how the agent learns *when* to switch and *to which* model.
+Populated during the wakeup wizard from the scanned Ollama model list; editable by the user
+at any time.
 
 ```markdown
-# Model Roles
+# Models
 
 ## Instructions to agent
 When you determine that a sub-task requires a specialist capability, consult this file
-to choose the correct model. Always prefer models marked as fits_vram: true.
+to choose the correct model.
 
 ## Role definitions
 
 ### reasoning
 model: deepseek-r1:14b
+description: Focused reasoning model — logic, planning, maths
+capabilities: text
 use_when: >
   You need to reason through a logical problem, evaluate trade-offs, solve a mathematical
   challenge, or plan a multi-step approach before acting. Do NOT use for code generation.
-example_trigger: "figure out the optimal cron schedule", "evaluate whether approach A or B is safer"
 
 ### coding
 model: qwen3-coder:30b
+description: Code specialist — generation, debugging, refactoring
+capabilities: text
 use_when: >
   You need to write, debug, refactor, or review code in any language. Also use for
   writing bash scripts longer than ~10 lines.
-example_trigger: "write a Python scraper", "fix the bug in this function", "write a systemd unit"
 
 ### fast
 model: qwen3:4b-instruct
+description: Lightweight model for quick, low-stakes tasks
+capabilities: text
 use_when: >
   The task is simple, low-stakes, and speed matters more than depth. Examples: summarising
   a short file, answering a factual question, reformatting text.
-example_trigger: "summarise this log file", "what does this flag do"
 
 ### bootstrap
 model: phi4-mini:latest
+description: Used during first-run wizard only
+capabilities: text
 use_when: >
   Used only during first-run wizard. Not available in the main agent loop.
 ```
@@ -276,18 +249,14 @@ not present
 detected: cuda
 fallback: cpu
 
-## Model fit summary
-| model                 | size_gb | fits_vram | fits_ram |
-|-----------------------|---------|-----------|----------|
-| phi4-mini:latest      | 2.5     | ✅        | ✅       |
-| qwen3-coder:30b       | 18.5    | ✅        | ✅       |
-| deepseek-r1:14b       | 9.0     | ✅        | ✅       |
-| qwen3:4b-instruct     | 2.5     | ✅        | ✅       |
-| devstral:latest       | 14.0    | ✅        | ✅       |
-
-## Parallel load feasibility
-qwen3-coder:30b (18.5) + qwen3:4b-instruct (2.5) = 21.0 GB → ✅ fits together
-qwen3-coder:30b (18.5) + deepseek-r1:14b (9.0) = 27.5 GB → ❌ too large
+## Locally available models (scanned from Ollama)
+| model                 | size_gb |
+|-----------------------|---------|
+| phi4-mini:latest      | 2.5     |
+| qwen3-coder:30b       | 18.5    |
+| deepseek-r1:14b       | 9.0     |
+| qwen3:4b-instruct     | 2.5     |
+| devstral:latest       | 14.0    |
 ```
 
 ---
@@ -377,8 +346,6 @@ Called automatically on every boot (not a model-callable tool).
 - Detects NVIDIA GPUs via `pynvml`; AMD via `subprocess rocm-smi`; Apple Silicon via
   `platform` + `subprocess system_profiler`; falls back to CPU-only if none detected
 - Queries `GET /api/tags` on Ollama for all pulled models and their sizes
-- Scores each model in `viable_models.md` against current free VRAM and RAM
-- Computes parallel load feasibility for all viable model pairs
 - Writes `workspace/hardware_profile.md`
 - Returns a compact hardware summary string injected into the system prompt
 
@@ -386,16 +353,15 @@ Called automatically on every boot (not a model-callable tool).
 
 ### `ollama_manager.py` — tools: `list_models()`, `pull_model(model_name)`
 
-**`list_models()`** — returns the current contents of `viable_models.md` plus live fit
-scores from the latest hardware profile. The agent calls this when it needs to reason about
-which model to switch to.
+**`list_models()`** — returns the current contents of `models.md` alongside the live list
+of models pulled in Ollama from `hardware_profile.md`. The agent calls this when it needs
+to reason about which model to switch to.
 
 **`pull_model(model_name)`** — pulls a model from Ollama's registry if:
-- The model is listed in `viable_models.md` with `auto_pull: yes`
-- The model fits within available VRAM or RAM
 - User confirmation is obtained (always required for pulls — this involves a download)
 
-Prints download progress to terminal. On completion, updates `hardware_profile.md` fit scores.
+Prints download progress to terminal. On completion, updates `hardware_profile.md` with the
+new model entry.
 
 ---
 
@@ -405,17 +371,15 @@ Called by the LLM as a tool call when it determines a specialist model is needed
 
 ```python
 def switch_model(
-    role: str,              # e.g. "reasoning", "coding", "fast" — maps via model_roles.md
+    role: str,              # e.g. "reasoning", "coding", "fast" — maps via models.md
     task_prompt: str,       # the specific sub-task to hand off
     transfer_context: str,  # compact summary of relevant prior context (≤ 500 tokens)
 ) -> str:                   # specialist model's response, returned as tool result
 ```
 
 **Behaviour:**
-1. Resolves `role` → `target_model` via `workspace/model_roles.md`.
-2. Validates model is in `viable_models.md` and fits in VRAM/RAM — refuses with explanation
-   if not.
-3. If `require_user_confirm_switch: true`, pauses and prints confirmation prompt.
+1. Resolves `role` → `target_model` via `workspace/models.md`.
+2. If `require_user_confirm_switch: true`, pauses and prints confirmation prompt.
 4. Builds a minimal fresh message list for the specialist:
    ```
    system: "You are a specialist assistant. Context: {transfer_context}"
@@ -498,7 +462,7 @@ You are O.R.A. — an autonomous local AI agent running on Linux via Ollama.
 {hardware_summary}
 
 [available models and roles]
-{model_roles}
+{models}
 
 [persistent memory]
 {persistent_memory}
@@ -508,12 +472,12 @@ You are O.R.A. — an autonomous local AI agent running on Linux via Ollama.
 - switch_model(role, task_prompt, transfer_context): delegate a sub-task to a specialist
   model. role must be one of: reasoning | coding | fast. Write transfer_context in ≤500
   tokens — only what the specialist needs to know. Their response returns as a tool result.
-- list_models(): show viable_models.md with live hardware fit scores
+- list_models(): show models.md alongside pulled Ollama models from hardware_profile.md
 - pull_model(model_name): pull a new model from Ollama (requires user confirmation)
 
 [rules]
 - Always use run_bash for shell commands — never assume a command ran without calling it.
-- Prefer VRAM-fit models when switching. Only use RAM-only models if no VRAM model fits.
+- When switching models, use the role assignment in models.md to pick the correct model.
 - Do not switch models for trivial tasks. Switch only when the role description matches.
 - Keep transfer_context concise (≤500 tokens). Do not dump the full conversation history.
 - You may append facts to workspace/memory/persistent_memory.md when you learn something
@@ -531,7 +495,7 @@ boot
   ├── print safety warning (full on first run, brief on subsequent)
   ├── load config.md
   ├── hardware_probe() → hardware_profile.md
-  ├── load viable_models.md + model_roles.md
+  ├── load models.md
   ├── load user_profile.md + persistent_memory.md + context_summary.md
   ├── select active model (config default or interactive prompt)
   └── build system_prompt
@@ -544,12 +508,12 @@ per-turn loop
   │     print command + [DESTRUCTIVE] tag if applicable
   │     confirm with user → execute on Linux → append result
   ├── if tool_call == "switch_model":
-  │     resolve role → validate hardware fit → optional user confirm
+  │     resolve role via models.md → optional user confirm
   │     call specialist via Ollama → append result → update session_state.md
   ├── if tool_call == "list_models":
-  │     return viable_models.md + live hardware fit scores
+  │     return models.md + pulled Ollama models from hardware_profile.md
   ├── if tool_call == "pull_model":
-  │     validate (viable list + hardware fit) → confirm with user → pull → update profiles
+  │     confirm with user → pull → update hardware_profile.md
   └── if no tool_call:
         print response → write session_state.md → next user input
 
@@ -585,7 +549,7 @@ rich>=13.0.0          # terminal formatting (safety warnings, tables, confirmati
 | Summary-based memory | Vector / RAG memory |
 | Ollama local models only | Cloud API fallback |
 | Linux (Ubuntu/Debian focus) | Windows, macOS |
-| Manual `viable_models.md` + `model_roles.md` | Automated model discovery and benchmarking |
+| Scan-based model discovery + manual role assignment in `models.md` | Automated benchmarking and preset hardware tiers |
 
 ---
 
@@ -597,9 +561,8 @@ rich>=13.0.0          # terminal formatting (safety warnings, tables, confirmati
 | Wakeup wizard populates all workspace markdown files | All files exist and are valid after first run |
 | Bootstrap model self-configures from `config.md` | Change `bootstrap_model`, rerun — uses new model |
 | Hardware profile accurate for NVIDIA, AMD, CPU fallback | Matches `nvidia-smi` / `rocm-smi` / `psutil` output |
-| Viable models list respects VRAM/RAM limits | Agent refuses to load a model that does not fit |
-| Agent pulls missing viable models with confirmation | `pull_model` works end-to-end with user confirm |
-| Model switching resolves role → model via `model_roles.md` | Correct model called per role |
+| Agent pulls models with confirmation | `pull_model` works end-to-end with user confirm |
+| Model switching resolves role → model via `models.md` | Correct model called per role |
 | Context transfer stays ≤ 500 tokens | Measurable in session_state.md switch log |
 | Overflow triggers at 82%, session continues uninterrupted | `context_summary.md` updated, no crash or data loss |
 | Session summary on exit is ≤ max_summary_tokens | Injected cleanly into next session system prompt |
