@@ -2,8 +2,9 @@
 
 ### O.R.A. — Orchestrated Reasoning Agent
 
-> Defines the three-panel Textual TUI that replaces the single-stream CLI as the
-> default interaction mode. The classic CLI remains available via `--cli`.
+> Defines the two-panel Textual TUI that replaces the single-stream CLI as the
+> default interaction mode. Settings open as a full-screen popup overlay.
+> The classic CLI remains available via `--cli`.
 
 ---
 
@@ -22,25 +23,41 @@ environments or headless use.
 ## Layout
 
 ```
-+--------------------+----------------------------+--------------------+
-|  Thinking & Tools  |       Conversation         |     Settings       |
-|                    |                            |   (hidden until    |
-|  [magenta thinking |  > user message            |    /settings)      |
-|   stream]          |  Ora: streamed response    |                    |
-|                    |                            |  [directory tree]  |
-|  > tool: run_bash  |  > user message            |  [file editor]    |
-|    ls ~/Desktop    |  Ora: streamed response    |  [Save] [Close]   |
-|  < show_paths: ... |                            |                    |
-+--------------------+----------------------------+--------------------+
-| Model: qwen3:4b | Workspace: ~/.local/share/ora-os | Config: ...     |
-+-----------------------------------------------------------------------+
++--------------------+------------------------------------------+
+|  Thinking & Tools  |             Conversation                  |
+|                    |                                          |
+|  [magenta thinking |  > user message                          |
+|   stream]          |  Ora: streamed response                  |
+|                    |                                          |
+|  > tool: run_bash  |  > user message                          |
+|    ls ~/Desktop    |  Ora: streamed response                  |
+|  < show_paths: ... |                                          |
++--------------------+------------------------------------------+
+| Model: qwen3:4b | Workspace: ~/.local/share/ora-os | ...     |
++---------------------------------------------------------------+
+```
+
+When the user types `/settings`, a full-screen popup overlay appears:
+
+```
++-----------------------------------------------------------+
+| Settings — workspace files (Ctrl+S save, Esc close)       |
++------------------+----------------------------------------+
+| [directory tree] |                                        |
+|  config.md       |  [full-size TextArea editor]           |
+|  user_profile.md |                                        |
+|  model_roles.md  |                                        |
+|  ...             |                                        |
++------------------+----------------------------------------+
+|                   [Save]  [Close]                         |
++-----------------------------------------------------------+
 ```
 
 | Panel | Width | Purpose |
 |-------|-------|---------|
 | Left — Thinking & Tools | 30 cols fixed | Model chain-of-thought (streamed live), tool call names + args, tool results (truncated) |
 | Center — Conversation | Flexible (fills remaining) | User messages, Ora responses (streamed token-by-token), system messages |
-| Right — Settings | 38 cols fixed, hidden by default | DirectoryTree of workspace, TextArea file editor, Save/Close buttons |
+| Settings popup | 90% screen, overlay | DirectoryTree of workspace + TextArea file editor + Save/Close. Appears on `/settings`, dismissed with Esc or Close. |
 | Status bar | Full width, 1 line | Active model, workspace path, config pointer path |
 
 ---
@@ -84,23 +101,24 @@ Standard chat display:
 The input bar is docked at the bottom. It is disabled while the agent is
 processing a turn to prevent double-submission.
 
-### Right — Settings
+### Settings popup
 
-Hidden by default. Appears when the user types `/settings`. Contains:
+Opens as a `ModalScreen` overlay (90% width/height) when the user types
+`/settings`. Contains:
 
-1. **DirectoryTree** — shows all files in the workspace directory
+1. **DirectoryTree** (left, 30 cols) — shows all files in the workspace
 2. **File path label** — name of the currently open file
-3. **TextArea** — full editor with markdown syntax highlighting
-4. **Save button** (or Ctrl+S) — writes the file to disk; if the file is
-   `config.md`, the config is automatically reloaded
-5. **Close button** — hides the panel and reloads config
+3. **TextArea** (right, fills remaining) — full editor with markdown syntax
+   highlighting. Uses the full available space since it's an overlay.
+4. **Save button** (or Ctrl+S) — writes the file to disk
+5. **Close button** (or Esc) — dismisses the popup and reloads config
 
 The user can edit files directly without asking the model. The model-assisted
 `/settings` conversational mode from the CLI is replaced by this direct editor
 in TUI mode.
 
-Closing the panel (`/done`, `/close`, or Close button) reloads `config.md`
-so any changes take effect immediately.
+When the popup closes, `config.md` is reloaded so any changes take effect
+immediately.
 
 ---
 

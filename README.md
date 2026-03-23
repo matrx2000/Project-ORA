@@ -81,10 +81,10 @@ Everything runs on your machine. No cloud APIs. No data leaves the box.
 - Session summaries persist across restarts so the agent remembers what happened last time
 
 ### Terminal UI (Textual)
-- Three-panel layout: **Thinking & Tools** (left) | **Conversation** (center) | **Settings** (right)
+- Two-panel layout: **Thinking & Tools** (left) | **Conversation** (center)
 - Model thinking/reasoning streamed in real time to the left panel
 - Tool calls and results visible as they happen
-- Built-in file editor for workspace files — open with `/settings`, edit, and save directly
+- Full-screen settings popup — type `/settings` to open a file browser + editor overlay
 - Bash command confirmation via modal dialog
 - Classic CLI mode available with `./run.sh --cli`
 
@@ -235,7 +235,7 @@ This is where you set up your model fleet. You have two options:
 
 | Tier | Target Hardware | Models |
 |------|----------------|--------|
-| 1 | Jetson / Low-end (<=8GB) | mistral-small3.1:24b-24q4_K_M, qwen2.5-vl:3b, deepseek-r1:1.5b, phi4-mini:3.8b |
+| 1 | Jetson / Low-end (<=8GB) | ministral-3b, qwen2.5-vl:3b, deepseek-r1:1.5b, phi4-mini:3.8b |
 | 2 | Mid-range (RTX 3080 ~10GB) | qwen3:8b, qwen2.5-vl:7b, deepseek-r1:7b, qwen3:4b |
 | 3 | High-end (RTX 4090 ~24GB) | qwen3-coder:30b, qwen2.5-vl:7b, deepseek-r1:14b, qwen3:4b |
 

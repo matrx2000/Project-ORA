@@ -1,6 +1,7 @@
 """
 tui.py — O.R.A. Terminal User Interface (Textual)
-Three-panel layout: Thinking & Tools | Conversation | Settings (file editor)
+Two-panel layout: Thinking & Tools | Conversation
+Settings open as a full-screen popup overlay with file browser + editor.
 """
 import sys
 import asyncio
@@ -91,6 +92,133 @@ class ConfirmScreen(ModalScreen[bool]):
 
 
 # ---------------------------------------------------------------------------
+# Settings popup screen
+# ---------------------------------------------------------------------------
+
+class SettingsScreen(ModalScreen[bool]):
+    """Full-screen popup for browsing and editing workspace files."""
+
+    BINDINGS = [
+        Binding("ctrl+s", "save_file", "Save", show=True),
+        Binding("escape", "close_settings", "Close", show=True),
+    ]
+
+    DEFAULT_CSS = """
+    SettingsScreen {
+        align: center middle;
+    }
+
+    #settings-container {
+        width: 90%;
+        height: 90%;
+        border: thick $warning;
+        background: $surface;
+    }
+
+    #settings-header {
+        width: 100%;
+        height: 1;
+        background: $warning-darken-2;
+        color: $text;
+        text-style: bold;
+        padding: 0 1;
+    }
+
+    #settings-body {
+        height: 1fr;
+    }
+
+    #stree-panel {
+        width: 30;
+        min-width: 20;
+        border-right: solid $surface-lighten-2;
+    }
+
+    #stree {
+        height: 1fr;
+        scrollbar-size: 1 1;
+    }
+
+    #seditor-panel {
+        width: 1fr;
+    }
+
+    #sfile-label {
+        height: 1;
+        padding: 0 1;
+        background: $surface-darken-2;
+        color: $text-muted;
+    }
+
+    #seditor {
+        height: 1fr;
+    }
+
+    #settings-bar {
+        dock: bottom;
+        height: 3;
+        align: center middle;
+        padding: 0 1;
+    }
+    """
+
+    def __init__(self, workspace_dir: Path):
+        super().__init__()
+        self.workspace_dir = workspace_dir
+        self._current_file = ""
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="settings-container"):
+            yield Static(
+                " Settings — workspace files (Ctrl+S save, Esc close)",
+                id="settings-header",
+            )
+            with Horizontal(id="settings-body"):
+                with Vertical(id="stree-panel"):
+                    yield DirectoryTree(str(self.workspace_dir), id="stree")
+                with Vertical(id="seditor-panel"):
+                    yield Static("No file selected", id="sfile-label")
+                    yield TextArea(id="seditor", language="markdown")
+            with Horizontal(id="settings-bar"):
+                yield Button("Save", id="ssave-btn", variant="success")
+                yield Button("Close", id="sclose-btn", variant="error")
+
+    @on(DirectoryTree.FileSelected, "#stree")
+    def on_file_selected(self, event: DirectoryTree.FileSelected) -> None:
+        path = event.path
+        try:
+            content = path.read_text(encoding="utf-8")
+        except Exception as e:
+            self.notify(f"Cannot read: {e}", severity="error")
+            return
+        self._current_file = str(path)
+        self.query_one("#sfile-label", Static).update(f" {path.name}")
+        self.query_one("#seditor", TextArea).load_text(content)
+
+    @on(Button.Pressed, "#ssave-btn")
+    def on_save_pressed(self) -> None:
+        self.action_save_file()
+
+    @on(Button.Pressed, "#sclose-btn")
+    def on_close_pressed(self) -> None:
+        self.action_close_settings()
+
+    def action_save_file(self) -> None:
+        if not self._current_file:
+            self.notify("No file open", severity="warning")
+            return
+        editor = self.query_one("#seditor", TextArea)
+        try:
+            Path(self._current_file).write_text(editor.text, encoding="utf-8")
+            self.notify(f"Saved: {Path(self._current_file).name}")
+        except Exception as e:
+            self.notify(f"Save failed: {e}", severity="error")
+
+    def action_close_settings(self) -> None:
+        self.dismiss(True)
+
+
+# ---------------------------------------------------------------------------
 # Main TUI Application
 # ---------------------------------------------------------------------------
 
@@ -142,53 +270,12 @@ class OraApp(App):
         margin: 0 1;
     }
 
-    /* ---- Right panel: settings / file editor ---- */
-
-    #right-panel {
-        width: 38;
-        min-width: 28;
-        background: $surface-darken-1;
-        border-left: vkey $primary-background-darken-2;
-    }
-
-    #file-tree {
-        height: 2fr;
-        scrollbar-size: 1 1;
-    }
-
-    #file-path-label {
-        height: 1;
-        padding: 0 1;
-        background: $surface-darken-2;
-        color: $text-muted;
-    }
-
-    #file-editor {
-        height: 3fr;
-    }
-
-    #editor-bar {
-        dock: bottom;
-        height: 3;
-        align: center middle;
-        padding: 0 1;
-    }
-
     /* ---- Shared ---- */
 
     .panel-header {
         width: 100%;
         height: 1;
         background: $primary-darken-3;
-        color: $text;
-        text-style: bold;
-        padding: 0 1;
-    }
-
-    .panel-header-settings {
-        width: 100%;
-        height: 1;
-        background: $warning-darken-2;
         color: $text;
         text-style: bold;
         padding: 0 1;
@@ -218,7 +305,6 @@ class OraApp(App):
     """
 
     BINDINGS = [
-        Binding("ctrl+s", "save_file", "Save File", show=True),
         Binding("ctrl+q", "quit", "Quit", show=True),
     ]
 
@@ -242,8 +328,6 @@ class OraApp(App):
         self._think_buffer = ""
         self._streaming_widget: Static | None = None
         self._thinking_widget: Static | None = None
-        self._current_file = ""
-        self._settings_open = False
 
         # Agent graph built in on_mount (needs self for callbacks)
         self.agent_graph = None
@@ -276,16 +360,6 @@ class OraApp(App):
                     id="user-input",
                 )
 
-            # RIGHT: settings file editor (hidden by default)
-            with Vertical(id="right-panel"):
-                yield Static(" Settings", classes="panel-header-settings")
-                yield DirectoryTree(str(self.workspace_dir), id="file-tree")
-                yield Static("No file selected", id="file-path-label")
-                yield TextArea(id="file-editor", language="markdown")
-                with Horizontal(id="editor-bar"):
-                    yield Button("Save", id="save-btn", variant="success")
-                    yield Button("Close", id="close-btn", variant="error")
-
         yield Static(
             f" Model: {self.active_model} | "
             f"Workspace: {self.workspace_dir} | "
@@ -296,11 +370,7 @@ class OraApp(App):
 
     async def on_mount(self) -> None:
         self._loop = asyncio.get_running_loop()
-        # Hide settings panel
-        self.query_one("#right-panel").display = False
-        # Build agent (needs self for callbacks)
         self._build_agent()
-        # Focus input
         self.query_one("#user-input", Input).focus()
 
     # -------------------------------------------------------------------
@@ -541,64 +611,22 @@ class OraApp(App):
         return future.result(timeout=300)
 
     # -------------------------------------------------------------------
-    # Settings panel
+    # Settings popup
     # -------------------------------------------------------------------
 
-    def _open_settings(self) -> None:
-        self._settings_open = True
-        self.query_one("#right-panel").display = True
-        # Refresh the directory tree
-        tree = self.query_one("#file-tree", DirectoryTree)
-        tree.reload()
-
-    def _close_settings(self) -> None:
-        self._settings_open = False
-        self.query_one("#right-panel").display = False
-        # Reload config in case files were edited
+    async def _open_settings(self) -> None:
+        """Push the settings popup and reload config when it closes."""
+        await self.push_screen_wait(SettingsScreen(self.workspace_dir))
         self.config = load_config(self.workspace_dir)
-        self.query_one("#user-input", Input).focus()
-
-    @on(DirectoryTree.FileSelected, "#file-tree")
-    def on_file_selected(self, event: DirectoryTree.FileSelected) -> None:
-        path = event.path
-        try:
-            content = path.read_text(encoding="utf-8")
-        except Exception as e:
-            self.notify(f"Cannot read: {e}", severity="error")
-            return
-        self._current_file = str(path)
-        self.query_one("#file-path-label", Static).update(f" {path.name}")
-        self.query_one("#file-editor", TextArea).load_text(content)
-
-    @on(Button.Pressed, "#save-btn")
-    def on_save_pressed(self) -> None:
-        self.action_save_file()
-
-    @on(Button.Pressed, "#close-btn")
-    def on_close_pressed(self) -> None:
-        self._close_settings()
         self._ui_add_system_message("Settings closed. Config reloaded.")
-
-    def action_save_file(self) -> None:
-        if not self._current_file:
-            self.notify("No file open", severity="warning")
-            return
-        editor = self.query_one("#file-editor", TextArea)
-        try:
-            Path(self._current_file).write_text(editor.text, encoding="utf-8")
-            self.notify(f"Saved: {Path(self._current_file).name}")
-            if Path(self._current_file).name == "config.md":
-                self.config = load_config(self.workspace_dir)
-                self.notify("Config reloaded")
-        except Exception as e:
-            self.notify(f"Save failed: {e}", severity="error")
+        self.query_one("#user-input", Input).focus()
 
     # -------------------------------------------------------------------
     # Input handling
     # -------------------------------------------------------------------
 
     @on(Input.Submitted, "#user-input")
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
         if not text:
             return
@@ -611,13 +639,7 @@ class OraApp(App):
             return
 
         if lower.startswith("/settings"):
-            self._open_settings()
-            self._ui_add_system_message("Settings panel opened. Select a file to edit.")
-            return
-
-        if lower in ("/done", "/close"):
-            self._close_settings()
-            self._ui_add_system_message("Settings closed. Config reloaded.")
+            await self._open_settings()
             return
 
         # Disable input while agent works
