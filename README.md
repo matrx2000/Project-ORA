@@ -1,4 +1,4 @@
-# Ora OS
+# Project O.R.A.
 
 **O.R.A. — Orchestrated Reasoning Agent**
 
