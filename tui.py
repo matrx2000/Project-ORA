@@ -31,7 +31,7 @@ from langgraph.prebuilt import ToolNode
 sys.path.insert(0, str(Path(__file__).parent))
 
 from main import (
-    OraConfig, load_config, _build_system_prompt, _load_text,
+    OraConfig, load_config, reload_config, _build_system_prompt, _load_text,
     _write_session_state, _try_parse_text_tool_calls, setup_session,
 )
 from bash_tool import make_run_bash_tool
@@ -656,7 +656,7 @@ class OraApp(App):
     def _open_settings(self) -> None:
         """Push the settings popup. Callback fires when it closes."""
         def on_dismiss(result: bool) -> None:
-            self.config = load_config(self.workspace_dir)
+            reload_config(self.config, self.workspace_dir)
             self._ui_add_system_message("Settings closed. Config reloaded.")
             self.query_one("#user-input", Input).focus()
         self.push_screen(SettingsScreen(self.workspace_dir), callback=on_dismiss)
@@ -664,7 +664,7 @@ class OraApp(App):
     def _open_models(self) -> None:
         """Open settings popup with models.md pre-loaded."""
         def on_dismiss(result: bool) -> None:
-            self.config = load_config(self.workspace_dir)
+            reload_config(self.config, self.workspace_dir)
             self._ui_add_system_message("Models updated. Config reloaded.")
             self.query_one("#user-input", Input).focus()
         screen = SettingsScreen(self.workspace_dir)

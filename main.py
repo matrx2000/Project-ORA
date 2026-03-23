@@ -123,6 +123,16 @@ def load_config(workspace_dir: Path) -> OraConfig:
     return cfg
 
 
+def reload_config(existing: OraConfig, workspace_dir: Path) -> None:
+    """Re-read config.md and update the existing OraConfig object IN PLACE.
+    This ensures all closures (bash_tool, etc.) that hold a reference to the
+    config object see the new values without needing to be recreated."""
+    from dataclasses import fields
+    fresh = load_config(workspace_dir)
+    for f in fields(existing):
+        setattr(existing, f.name, getattr(fresh, f.name))
+
+
 # ---------------------------------------------------------------------------
 # Workspace file loaders
 # ---------------------------------------------------------------------------
@@ -1050,8 +1060,8 @@ def main():
                 settings_mode = False
                 settings_messages = []
                 settings_focus = None
-                # Reload config in case settings changed
-                config = load_config(workspace_dir)
+                # Reload config in case settings changed (in-place so closures see new values)
+                reload_config(config, workspace_dir)
                 console.print("\n[bold green][ora][/bold green] Returning to normal mode.\n")
                 continue
 
@@ -1076,7 +1086,7 @@ def main():
 
             # Optionally reload config each turn
             if config.auto_reload_config:
-                config = load_config(workspace_dir)
+                reload_config(config, workspace_dir)
 
             # Vision routing — pre-process user message for file attachments
             vr = route_user_message(

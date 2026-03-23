@@ -100,6 +100,45 @@ def _is_destructive(command: str) -> bool:
     return any(p.search(command) for p in _DESTRUCTIVE_PATTERNS)
 
 
+def _read_config_from_disk(workspace_dir: Path | None) -> dict:
+    """Read safety settings directly from config.md on disk.
+    This ensures manual edits take effect immediately without restart."""
+    defaults = {
+        "bash_exclude_commands": [],
+        "bash_require_confirm": True,
+        "bash_restrict_to_workspace": True,
+        "bash_warn_destructive": True,
+    }
+    if not workspace_dir:
+        return defaults
+    config_path = workspace_dir / "config.md"
+    if not config_path.exists():
+        return defaults
+    try:
+        raw: dict[str, str] = {}
+        for line in config_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if ": " in line:
+                key, value = line.split(": ", 1)
+                raw[key.strip()] = value.strip()
+        parse_bool = lambda v: v.strip().lower() in ("true", "yes", "1")
+        if "bash_exclude_commands" in raw:
+            defaults["bash_exclude_commands"] = [
+                s.strip() for s in raw["bash_exclude_commands"].split(",") if s.strip()
+            ]
+        if "bash_require_confirm" in raw:
+            defaults["bash_require_confirm"] = parse_bool(raw["bash_require_confirm"])
+        if "bash_restrict_to_workspace" in raw:
+            defaults["bash_restrict_to_workspace"] = parse_bool(raw["bash_restrict_to_workspace"])
+        if "bash_warn_destructive" in raw:
+            defaults["bash_warn_destructive"] = parse_bool(raw["bash_warn_destructive"])
+    except Exception:
+        pass
+    return defaults
+
+
 def make_run_bash_tool(
     config,
     console: Console | None = None,
@@ -109,11 +148,8 @@ def make_run_bash_tool(
     """
     Factory that returns a run_bash function bound to current config.
 
-    config fields used:
-        bash_exclude_commands (list)
-        bash_require_confirm (bool)
-        bash_restrict_to_workspace (bool)  — block commands targeting paths outside workspace
-        bash_warn_destructive (bool)       — show [DESTRUCTIVE] tag on dangerous commands
+    Safety settings are re-read from config.md on disk on EVERY call,
+    so manual edits take effect immediately without restart.
 
     confirm_callback: optional callable(command: str, is_destructive: bool) -> bool
         When provided, used instead of console-based Confirm.ask (for TUI mode).
@@ -134,10 +170,11 @@ def make_run_bash_tool(
         Returns:
             Command stdout + stderr, or an error/rejection message.
         """
-        # Read config live on every call so /settings changes take effect
-        extra_blocked: list[str] = getattr(config, "bash_exclude_commands", [])
-        restrict_to_ws: bool = getattr(config, "bash_restrict_to_workspace", True)
-        warn_destructive: bool = getattr(config, "bash_warn_destructive", True)
+        # Re-read safety settings from disk on every call — manual edits take effect immediately
+        live = _read_config_from_disk(workspace_dir)
+        extra_blocked: list[str] = live["bash_exclude_commands"]
+        restrict_to_ws: bool = live["bash_restrict_to_workspace"]
+        warn_destructive: bool = live["bash_warn_destructive"]
 
         command = command.strip()
         if not command:
@@ -173,14 +210,14 @@ def make_run_bash_tool(
 
         # Confirmation — TUI callback or CLI prompt
         if confirm_callback:
-            if config.bash_require_confirm:
+            if live["bash_require_confirm"]:
                 if not confirm_callback(command, is_destructive):
                     return "Command cancelled by user."
         else:
             tag = "[bold red][DESTRUCTIVE][/bold red] " if is_destructive else ""
             if console:
                 console.print(f"\n{tag}[bold]Run:[/bold] [cyan]{command}[/cyan]")
-            if config.bash_require_confirm:
+            if live["bash_require_confirm"]:
                 if not Confirm.ask("Execute?", default=False):
                     return "Command cancelled by user."
 
