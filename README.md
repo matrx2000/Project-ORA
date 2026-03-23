@@ -167,6 +167,17 @@ source .venv/bin/activate
 python main.py
 ```
 
+### 4. Uninstall
+
+To completely remove O.R.A. (venv, workspace data, settings, memory):
+
+```bash
+chmod +x uninstall.sh
+./uninstall.sh
+```
+
+This requires you to type `DELETE EVERYTHING` to confirm. Source code is kept.
+
 ---
 
 ## First-Run Setup

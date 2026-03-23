@@ -26,14 +26,14 @@ def get_default_workspace() -> Path:
     return Path(user_data_dir(APP_NAME, APP_AUTHOR))
 
 
-def _get_config_dir() -> Path:
+def get_config_dir() -> Path:
     """Return the OS config directory for the workspace pointer."""
     return Path(user_config_dir(APP_NAME, APP_AUTHOR))
 
 
 def _get_workspace_conf_path() -> Path:
     """Path to the workspace.conf pointer file."""
-    return _get_config_dir() / "workspace.conf"
+    return get_config_dir() / "workspace.conf"
 
 
 def read_workspace_location() -> Path | None:

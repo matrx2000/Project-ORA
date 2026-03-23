@@ -31,6 +31,7 @@ from tools.network_scanner import run_network_scan, ScoredRemoteModel, NetworkCo
 from tools.vision_router import route_user_message, VisionResult
 from tools.workspace_resolver import (
     resolve_workspace, save_workspace_location, run_silent_safety_check,
+    get_config_dir,
 )
 
 console = Console()
@@ -154,7 +155,14 @@ def _build_system_prompt(
         )
         remote_section = "\n".join(remote_lines)
 
+    config_dir = get_config_dir()
+
     return f"""You are O.R.A. (Orchestrated Reasoning Agent) — an autonomous local AI agent running on Linux via Ollama.
+
+[file locations]
+workspace: {workspace_dir}
+config pointer: {config_dir}
+memory: {workspace_dir / "memory"}
 
 [user]
 {user_profile}
@@ -181,6 +189,7 @@ def _build_system_prompt(
   tool result.
 - list_models(): show viable_models.md with live hardware fit scores
 - pull_model(model_name): pull a new model from Ollama (requires user confirmation)
+- show_paths(): show where O.R.A. stores workspace, config, and memory files on this system
 
 [rules]
 - Always use run_bash for shell commands — never assume a command ran without calling it.
@@ -668,6 +677,8 @@ def main():
         )
 
     console.print(f"\n[bold green]O.R.A. starting[/bold green] with model [cyan]{active_model}[/cyan]")
+    console.print(f"[dim]  Workspace:  {workspace_dir}[/dim]")
+    console.print(f"[dim]  Config:     {get_config_dir()}[/dim]")
     console.print("[dim]Type 'exit' or press Ctrl+C to quit. Type '/settings' to configure.[/dim]\n")
 
     # Mutable reference for switch_model tool to always read current active model
@@ -707,7 +718,28 @@ def main():
         """Pull a model from Ollama's registry (requires user confirmation)."""
         return _pull_model(model_name, workspace_dir, config.ollama_base_url, console)
 
-    tools = [run_bash, switch_model, list_models, pull_model]
+    @lc_tool
+    def show_paths() -> str:
+        """Show where O.R.A. stores its workspace, config, and memory files on this system."""
+        config_dir = get_config_dir()
+        memory_dir = workspace_dir / "memory"
+        lines = [
+            "O.R.A. file locations:",
+            f"  Workspace (settings, profiles, models):  {workspace_dir}",
+            f"  Config pointer (workspace.conf):         {config_dir}",
+            f"  Memory (summaries, persistent facts):     {memory_dir}",
+            "",
+            "Key files:",
+            f"  {workspace_dir / 'config.md'}",
+            f"  {workspace_dir / 'user_profile.md'}",
+            f"  {workspace_dir / 'viable_models.md'}",
+            f"  {workspace_dir / 'model_roles.md'}",
+            f"  {memory_dir / 'persistent_memory.md'}",
+            f"  {memory_dir / 'context_summary.md'}",
+        ]
+        return "\n".join(lines)
+
+    tools = [run_bash, switch_model, list_models, pull_model, show_paths]
 
     # Build LLM
     llm = ChatOpenAI(
