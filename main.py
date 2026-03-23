@@ -586,6 +586,90 @@ class ThinkingStreamPrinter:
 # LangGraph agent builder
 # ---------------------------------------------------------------------------
 
+def _try_parse_text_tool_calls(message):
+    """
+    Fallback parser for models that emit tool calls as JSON text instead of
+    using the structured tool_calls format.  Detects patterns like:
+      [{"name": "run_bash", "arguments": {"command": "ls"}}]
+    or embedded in markdown code fences, and converts them to real tool_calls
+    on the AIMessage so LangGraph can route them.
+    """
+    import json as _json
+
+    if not message or not hasattr(message, "content") or not message.content:
+        return message
+    # Already has real tool calls — nothing to do
+    if hasattr(message, "tool_calls") and message.tool_calls:
+        return message
+
+    content = message.content.strip()
+
+    # Strip markdown code fences if present
+    if content.startswith("```"):
+        lines = content.splitlines()
+        # Remove first and last fence lines
+        if lines and lines[-1].strip() == "```":
+            lines = lines[1:-1]
+        content = "\n".join(lines).strip()
+
+    # Try to find a JSON array of tool calls anywhere in the content
+    # Look for [{"name": ...}] pattern
+    import re
+    match = re.search(r'\[[\s\S]*?\{[\s\S]*?"name"[\s\S]*?\}[\s\S]*?\]', content)
+    if not match:
+        # Also try a single object: {"name": ..., "arguments": ...}
+        match = re.search(r'\{[\s\S]*?"name"[\s\S]*?"arguments"[\s\S]*?\}', content)
+        if match:
+            # Wrap in array
+            try:
+                obj = _json.loads(match.group())
+                candidates = [obj]
+            except (ValueError, _json.JSONDecodeError):
+                return message
+        else:
+            return message
+    else:
+        try:
+            candidates = _json.loads(match.group())
+        except (ValueError, _json.JSONDecodeError):
+            return message
+
+    if not isinstance(candidates, list):
+        candidates = [candidates]
+
+    parsed_calls = []
+    for i, call in enumerate(candidates):
+        if not isinstance(call, dict):
+            continue
+        name = call.get("name") or call.get("function", {}).get("name")
+        args = call.get("arguments") or call.get("parameters") or call.get("function", {}).get("arguments", {})
+        if not name:
+            continue
+        if isinstance(args, str):
+            try:
+                args = _json.loads(args)
+            except (ValueError, _json.JSONDecodeError):
+                args = {"input": args}
+        parsed_calls.append({
+            "name": name,
+            "args": args if isinstance(args, dict) else {},
+            "id": f"fallback_{i}",
+            "type": "tool_call",
+        })
+
+    if not parsed_calls:
+        return message
+
+    # Replace the text content with the non-JSON portion (if any) and attach real tool_calls
+    # Extract the text before the JSON as the actual content
+    json_start = content.find(match.group())
+    pre_text = content[:json_start].strip() if json_start > 0 else ""
+
+    message.tool_calls = parsed_calls
+    message.content = pre_text
+    return message
+
+
 def build_graph(llm_with_tools, tool_node):
     """Build a LangGraph ReAct graph with streaming output."""
     from typing import TypedDict
@@ -610,6 +694,11 @@ def build_graph(llm_with_tools, tool_node):
                 printer.feed(chunk.content)
 
         printer.finish()
+
+        # Fallback: some local models emit tool calls as JSON text instead of
+        # using the structured tool_calls format. Parse and convert them.
+        full_response = _try_parse_text_tool_calls(full_response)
+
         return {"messages": [full_response]}
 
     def route(state: AgentState) -> str:
