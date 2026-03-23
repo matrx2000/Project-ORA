@@ -59,6 +59,8 @@ require_user_confirm_switch: false
 ## Safety
 bash_exclude_commands: rm -rf /,mkfs,dd if=/dev/zero,shutdown,reboot
 bash_require_confirm: true
+bash_restrict_to_workspace: true
+bash_warn_destructive: true
 
 ## Session
 auto_save_session_state: true

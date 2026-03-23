@@ -98,12 +98,20 @@ def _is_destructive(command: str) -> bool:
     return any(p.search(command) for p in _DESTRUCTIVE_PATTERNS)
 
 
-def make_run_bash_tool(config, console: Console):
+def make_run_bash_tool(config, console: Console, workspace_dir: Path | None = None):
     """
     Factory that returns a run_bash function bound to current config.
-    config must have: bash_exclude_commands (list), bash_require_confirm (bool).
+
+    config fields used:
+        bash_exclude_commands (list)
+        bash_require_confirm (bool)
+        bash_restrict_to_workspace (bool)  — block commands targeting paths outside workspace
+        bash_warn_destructive (bool)       — show [DESTRUCTIVE] tag on dangerous commands
     """
     extra_blocked: list[str] = getattr(config, "bash_exclude_commands", [])
+    restrict_to_ws: bool = getattr(config, "bash_restrict_to_workspace", True)
+    warn_destructive: bool = getattr(config, "bash_warn_destructive", True)
+    ws_path: str = str(workspace_dir.resolve()) if workspace_dir else ""
 
     def run_bash(command: str) -> str:
         """
@@ -138,8 +146,19 @@ def make_run_bash_tool(config, console: Console):
                 "Only commands in the permitted categories can be executed."
             )
 
+        # Workspace restriction check
+        if restrict_to_ws and ws_path:
+            violation = _check_workspace_restriction(command, ws_path)
+            if violation:
+                return (
+                    f"BLOCKED: bash_restrict_to_workspace is enabled. "
+                    f"This command references a path outside the workspace ({violation}). "
+                    f"Workspace: {ws_path}\n"
+                    "Disable this restriction in /settings safety if you need full OS access."
+                )
+
         # Build confirmation prompt
-        is_destructive = _is_destructive(command)
+        is_destructive = warn_destructive and _is_destructive(command)
         tag = "[bold red][DESTRUCTIVE][/bold red] " if is_destructive else ""
 
         console.print(f"\n{tag}[bold]Run:[/bold] [cyan]{command}[/cyan]")
@@ -169,3 +188,50 @@ def make_run_bash_tool(config, console: Console):
             return f"Error executing command: {exc}"
 
     return run_bash
+
+
+# ---------------------------------------------------------------------------
+# Workspace restriction helper
+# ---------------------------------------------------------------------------
+
+# Commands that are safe to run anywhere (they don't target files)
+_UNRESTRICTED_COMMANDS = re.compile(
+    r"^(ps|top|htop|free|vmstat|iostat|uptime|uname|hostname|id|whoami|"
+    r"groups|pwd|date|lscpu|lsmem|lsusb|lspci|lsblk|blkid|df|"
+    r"systemctl|journalctl|timedatectl|hostnamectl|localectl|"
+    r"pgrep|pkill|kill|ping|dig|host|ss|netstat|ip|ollama|which|env)\b"
+)
+
+
+def _check_workspace_restriction(command: str, ws_path: str) -> str | None:
+    """
+    Return the offending path if the command references files outside the
+    workspace, or None if the command is OK.
+
+    This is a best-effort heuristic — it catches common cases like explicit
+    absolute paths but cannot parse every possible shell expansion.
+    """
+    cmd = command.strip()
+
+    # Commands that don't operate on file paths are always fine
+    if _UNRESTRICTED_COMMANDS.match(cmd):
+        return None
+
+    # Extract tokens that look like absolute paths
+    tokens = cmd.split()
+    for token in tokens:
+        # Skip flags
+        if token.startswith("-"):
+            continue
+        # Expand ~ to home
+        expanded = token.replace("~", str(Path.home()))
+        # Check absolute paths
+        if expanded.startswith("/"):
+            try:
+                resolved = str(Path(expanded).resolve())
+            except (OSError, ValueError):
+                continue
+            if not resolved.startswith(ws_path):
+                return token
+
+    return None

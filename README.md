@@ -380,8 +380,10 @@ your workspace is stored.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `bash_require_confirm` | `true` | Require `[y/N]` confirmation before every bash command. Set to `false` to auto-execute. **Destructive commands are still flagged.** |
-| `bash_exclude_commands` | `rm -rf /,mkfs,dd if=/dev/zero,shutdown,reboot` | Comma-separated list of hard-blocked command patterns. These are refused unconditionally. |
+| `bash_require_confirm` | `true` | Require `[y/N]` confirmation before every bash command. Set to `false` to auto-execute. |
+| `bash_restrict_to_workspace` | `true` | When enabled, commands that target paths outside the workspace directory are blocked. Disable to give the agent full Linux filesystem access. |
+| `bash_warn_destructive` | `true` | Show `[DESTRUCTIVE]` tag on dangerous commands (`rm`, `kill`, etc.). When disabled, these commands run without the extra warning. **Hard-blocked patterns are always enforced regardless.** |
+| `bash_exclude_commands` | `rm -rf /,mkfs,dd if=/dev/zero,shutdown,reboot` | Comma-separated list of hard-blocked command patterns. These are refused unconditionally and cannot be toggled off. |
 
 ### Session
 
@@ -397,8 +399,10 @@ in plain language:
 
 ```
 > /settings safety
-> turn off bash confirmation
-ora: I'll set bash_require_confirm: false in config.md.
+> turn off bash confirmation and give me full filesystem access
+ora: I'll make these changes to config.md:
+     - bash_require_confirm: true -> false
+     - bash_restrict_to_workspace: true -> false
      Confirm? [y/N]:
 ```
 

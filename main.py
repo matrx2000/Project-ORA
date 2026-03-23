@@ -10,7 +10,7 @@ from typing import Annotated
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.tools import tool as lc_tool
-from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
@@ -58,6 +58,8 @@ class OraConfig:
     require_user_confirm_switch: bool = False
     bash_exclude_commands: list = field(default_factory=list)
     bash_require_confirm: bool = True
+    bash_restrict_to_workspace: bool = True
+    bash_warn_destructive: bool = True
     auto_save_session_state: bool = True
     auto_reload_config: bool = False
 
@@ -112,6 +114,10 @@ def load_config(workspace_dir: Path) -> OraConfig:
         ]
     if "bash_require_confirm" in raw:
         cfg.bash_require_confirm = _parse_bool(raw["bash_require_confirm"])
+    if "bash_restrict_to_workspace" in raw:
+        cfg.bash_restrict_to_workspace = _parse_bool(raw["bash_restrict_to_workspace"])
+    if "bash_warn_destructive" in raw:
+        cfg.bash_warn_destructive = _parse_bool(raw["bash_warn_destructive"])
     if "auto_save_session_state" in raw:
         cfg.auto_save_session_state = _parse_bool(raw["auto_save_session_state"])
     if "auto_reload_config" in raw:
@@ -133,6 +139,7 @@ def _load_text(path: Path) -> str:
 def _build_system_prompt(
     workspace_dir: Path,
     hardware_summary: str,
+    config: "OraConfig | None" = None,
     approved_remote_models: list[ScoredRemoteModel] | None = None,
 ) -> str:
     user_profile = _load_text(workspace_dir / "user_profile.md")
@@ -155,13 +162,28 @@ def _build_system_prompt(
         )
         remote_section = "\n".join(remote_lines)
 
-    config_dir = get_config_dir()
+    cfg_dir = get_config_dir()
+
+    # Build filesystem access rule based on config
+    restrict = config.bash_restrict_to_workspace if config else True
+    if restrict:
+        fs_rule = (
+            f"- IMPORTANT: bash_restrict_to_workspace is ON. You can only read/write files "
+            f"inside the workspace ({workspace_dir}). Commands targeting paths outside the "
+            f"workspace will be blocked. The user can disable this in /settings safety."
+        )
+    else:
+        fs_rule = (
+            "- bash_restrict_to_workspace is OFF. You have full access to the Linux "
+            "filesystem. Be careful with system files and always confirm destructive actions."
+        )
 
     return f"""You are O.R.A. (Orchestrated Reasoning Agent) — an autonomous local AI agent running on Linux via Ollama.
+O.R.A. stands for Orchestrated Reasoning Agent. You are not affiliated with any existing brand or product. You are O.R.A.
 
 [file locations]
 workspace: {workspace_dir}
-config pointer: {config_dir}
+config pointer: {cfg_dir}
 memory: {workspace_dir / "memory"}
 
 [user]
@@ -197,13 +219,12 @@ memory: {workspace_dir / "memory"}
 
 [rules]
 - Always use run_bash for shell commands — never assume a command ran without calling it.
+{fs_rule}
 - Prefer VRAM-fit models when switching. Only use RAM-only models if no VRAM model fits.
 - Do not switch models for trivial tasks. Switch only when the role description matches.
 - Keep transfer_context concise (<=500 tokens). Do not dump the full conversation history.
 - You may append facts to workspace/memory/persistent_memory.md when you learn something
   worth remembering across sessions.
-- You are running on a dedicated Linux machine. You may interact broadly with the OS but
-  must always confirm destructive or irreversible actions with the user.
 - When the user types /settings, enter settings mode to help configure workspace files.
 """
 
@@ -493,21 +514,29 @@ State = dict  # We manage messages externally; graph receives full history each 
 class ThinkingStreamPrinter:
     """
     Streams LLM output to the terminal token-by-token.
-    Content inside <think>...</think> is displayed dimmed so the user can see
-    the model's chain-of-thought reasoning separately from the final response.
+    Thinking blocks (<think>...</think>) are rendered in a distinct colour with
+    a visible border so they stand out from the final response.
     """
 
     THINK_START = "<think>"
     THINK_END = "</think>"
-    DIM = "\033[2m"
-    DIM_ITALIC = "\033[2;3m"
-    BOLD = "\033[1m"
-    RESET = "\033[0m"
+
+    # ANSI codes
+    RESET      = "\033[0m"
+    BOLD       = "\033[1m"
+    DIM        = "\033[2m"
+    # Thinking style: dim magenta italic
+    THINK_CLR  = "\033[2;3;35m"
+    # Border for thinking block
+    THINK_BAR  = "\033[35m"
+    # Response style: normal white
+    RESP_CLR   = "\033[0m"
 
     def __init__(self):
         self.in_think = False
         self.buffer = ""
         self.header_printed = False
+        self.think_header_printed = False
         self.has_content = False
 
     def _write(self, text: str) -> None:
@@ -518,6 +547,23 @@ class ThinkingStreamPrinter:
         if not self.header_printed:
             self._write(f"\n{self.BOLD}Ora{self.RESET}: ")
             self.header_printed = True
+
+    def _open_think_block(self) -> None:
+        """Print the thinking section header with a coloured border."""
+        if not self.think_header_printed:
+            self._write(
+                f"\n{self.THINK_BAR}  {'─' * 40}{self.RESET}\n"
+                f"{self.THINK_BAR}  thinking ...{self.RESET}\n"
+                f"{self.THINK_BAR}  {'─' * 40}{self.RESET}\n"
+            )
+            self.think_header_printed = True
+
+    def _close_think_block(self) -> None:
+        """Print the closing border for the thinking section."""
+        if self.think_header_printed:
+            self._write(
+                f"\n{self.THINK_BAR}  {'─' * 40}{self.RESET}\n\n"
+            )
 
     def feed(self, text: str) -> None:
         """Feed a chunk of streamed text. Handles <think> tag boundaries."""
@@ -532,18 +578,16 @@ class ThinkingStreamPrinter:
                     # Partial — emit all but last len(THINK_END)-1 chars
                     safe = len(self.buffer) - (len(self.THINK_END) - 1)
                     if safe > 0:
-                        self._print_header()
                         self.has_content = True
-                        self._write(f"{self.DIM_ITALIC}{self.buffer[:safe]}{self.RESET}")
+                        self._write(f"{self.THINK_CLR}{self.buffer[:safe]}{self.RESET}")
                         self.buffer = self.buffer[safe:]
                     return
                 else:
                     chunk = self.buffer[:idx]
                     if chunk:
-                        self._print_header()
                         self.has_content = True
-                        self._write(f"{self.DIM_ITALIC}{chunk}{self.RESET}")
-                    self._write("\n")
+                        self._write(f"{self.THINK_CLR}{chunk}{self.RESET}")
+                    self._close_think_block()
                     self.buffer = self.buffer[idx + len(self.THINK_END):]
                     self.in_think = False
             else:
@@ -553,7 +597,7 @@ class ThinkingStreamPrinter:
                     if safe > 0:
                         self._print_header()
                         self.has_content = True
-                        self._write(self.buffer[:safe])
+                        self._write(f"{self.RESP_CLR}{self.buffer[:safe]}")
                         self.buffer = self.buffer[safe:]
                     return
                 else:
@@ -561,9 +605,8 @@ class ThinkingStreamPrinter:
                     if chunk:
                         self._print_header()
                         self.has_content = True
-                        self._write(chunk)
-                    self._print_header()
-                    self._write(f"\n{self.DIM_ITALIC}[thinking] ")
+                        self._write(f"{self.RESP_CLR}{chunk}")
+                    self._open_think_block()
                     self.has_content = True
                     self.buffer = self.buffer[idx + len(self.THINK_START):]
                     self.in_think = True
@@ -571,12 +614,13 @@ class ThinkingStreamPrinter:
     def finish(self) -> None:
         """Flush remaining buffer and close any open styling."""
         if self.buffer:
-            self._print_header()
             self.has_content = True
             if self.in_think:
-                self._write(f"{self.DIM_ITALIC}{self.buffer}{self.RESET}")
+                self._write(f"{self.THINK_CLR}{self.buffer}{self.RESET}")
+                self._close_think_block()
             else:
-                self._write(self.buffer)
+                self._print_header()
+                self._write(f"{self.RESP_CLR}{self.buffer}")
             self.buffer = ""
         if self.has_content:
             self._write(f"{self.RESET}\n\n")
@@ -692,6 +736,7 @@ def build_graph(llm_with_tools, tool_node, console: Console | None = None):
                 full_response = full_response + chunk
 
             # Stream content tokens to terminal (tool-call chunks have no .content)
+            # ChatOllama streams <think>...</think> tags inline in .content
             if chunk.content:
                 printer.feed(chunk.content)
 
@@ -811,7 +856,7 @@ def main():
     active_model_ref = [active_model]
 
     # Build tools
-    run_bash_fn = make_run_bash_tool(config, console)
+    run_bash_fn = make_run_bash_tool(config, console, workspace_dir)
     switch_model_fn = make_switch_model_tool(
         workspace_dir, config.ollama_base_url, active_model_ref,
         config.require_user_confirm_switch, console,
@@ -867,11 +912,11 @@ def main():
 
     tools = [run_bash, switch_model, list_models, pull_model, show_paths]
 
-    # Build LLM
-    llm = ChatOpenAI(
+    # Build LLM — ChatOllama talks to Ollama's native API, which properly
+    # surfaces <think> tokens from reasoning models like qwen3
+    llm = ChatOllama(
         model=active_model,
-        base_url=config.ollama_base_url.rstrip("/") + "/v1",
-        api_key="ollama",
+        base_url=config.ollama_base_url,
         temperature=0,
     )
     llm_with_tools = llm.bind_tools(tools)
@@ -881,7 +926,7 @@ def main():
     agent_graph = build_graph(llm_with_tools, tool_node, console)
 
     # Build initial system prompt (with remote model info)
-    system_prompt = _build_system_prompt(workspace_dir, hardware_summary, approved_remote)
+    system_prompt = _build_system_prompt(workspace_dir, hardware_summary, config, approved_remote)
 
     # Session state
     messages: list = [SystemMessage(content=system_prompt)]
