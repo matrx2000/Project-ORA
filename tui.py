@@ -380,18 +380,27 @@ class OraApp(App):
                     id="user-input",
                 )
 
-        yield Static(
-            f" Model: {self.active_model} | "
-            f"Workspace: {self.workspace_dir} | "
-            f"Config: {get_config_dir()}",
-            id="status-bar",
-        )
+        yield Static(id="status-bar")
         yield Footer()
 
     async def on_mount(self) -> None:
         self._loop = asyncio.get_running_loop()
         self._build_agent()
+        self._update_status_bar()
         self.query_one("#user-input", Input).focus()
+
+    def _update_status_bar(self, state: str = "") -> None:
+        """Update the status bar with current model and optional state."""
+        model = self.active_model_ref[0] if self.active_model_ref[0] else "none"
+        if state:
+            model_text = f"[yellow]{model} ({state})[/yellow]"
+        else:
+            model_text = f"[cyan]{model}[/cyan]"
+        self.query_one("#status-bar", Static).update(
+            f" Model: {model_text} | "
+            f"Workspace: {self.workspace_dir} | "
+            f"Config: {get_config_dir()}"
+        )
 
     # -------------------------------------------------------------------
     # Agent setup (runs once in on_mount)
@@ -614,6 +623,10 @@ class OraApp(App):
         if name == "run_bash":
             cmd = args.get("command", "")
             text = f"[yellow]> [bold]{name}[/bold][/yellow]\n[dim]{cmd}[/dim]"
+        elif name == "switch_model":
+            role = args.get("role", "?")
+            text = f"[yellow]> [bold]{name}[/bold] → {role}[/yellow]"
+            self._update_status_bar(state=f"switching to {role}")
         else:
             args_str = ", ".join(f"{k}={v!r}" for k, v in args.items())
             if len(args_str) > 80:
@@ -627,6 +640,9 @@ class OraApp(App):
         preview = content if len(content) <= 200 else content[:197] + "..."
         scroll.mount(Static(f"[dim]< {name}: {preview}[/dim]"))
         scroll.scroll_end(animate=False)
+        # Restore status bar after switch_model completes
+        if name == "switch_model":
+            self._update_status_bar()
 
     # -------------------------------------------------------------------
     # Bash confirmation (called from worker thread)
@@ -813,6 +829,7 @@ class OraApp(App):
     @work(exclusive=True, thread=True)
     def _run_agent_turn(self, user_input: str) -> None:
         """Run one full agent turn in a background thread."""
+        self.call_from_thread(self._update_status_bar, "processing...")
         # Rebuild system prompt so model sees current config (safety rules, etc.)
         self._refresh_system_prompt()
 
@@ -873,6 +890,7 @@ class OraApp(App):
         inp = self.query_one("#user-input", Input)
         inp.disabled = False
         inp.focus()
+        self._update_status_bar()
 
     # -------------------------------------------------------------------
     # Exit
