@@ -735,9 +735,21 @@ def build_graph(llm_with_tools, tool_node, console: Console | None = None):
             else:
                 full_response = full_response + chunk
 
-            # Stream content tokens to terminal (tool-call chunks have no .content)
-            # ChatOllama streams <think>...</think> tags inline in .content
-            if chunk.content:
+            # Ollama returns thinking in a separate "thinking" field, not in
+            # content. We wrap it in <think> tags for the printer to render.
+            thinking = ""
+            if hasattr(chunk, "thinking") and chunk.thinking:
+                thinking = chunk.thinking
+            elif hasattr(chunk, "additional_kwargs") and chunk.additional_kwargs:
+                thinking = chunk.additional_kwargs.get("thinking", "")
+            if thinking:
+                if not printer.in_think:
+                    printer.feed("<think>")
+                printer.feed(thinking)
+            elif chunk.content:
+                # Close thinking block if we were in one and now got content
+                if printer.in_think:
+                    printer.feed("</think>")
                 printer.feed(chunk.content)
 
         printer.finish()
@@ -912,12 +924,14 @@ def main():
 
     tools = [run_bash, switch_model, list_models, pull_model, show_paths]
 
-    # Build LLM — ChatOllama talks to Ollama's native API, which properly
-    # surfaces <think> tokens from reasoning models like qwen3
+    # Build LLM — ChatOllama talks to Ollama's native API.
+    # think=True tells Ollama to return reasoning tokens from thinking models
+    # (qwen3, deepseek-r1, etc.) in a separate "thinking" field.
     llm = ChatOllama(
         model=active_model,
         base_url=config.ollama_base_url,
         temperature=0,
+        think=True,
     )
     llm_with_tools = llm.bind_tools(tools)
     tool_node = ToolNode(tools)
