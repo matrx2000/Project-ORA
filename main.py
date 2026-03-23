@@ -223,8 +223,13 @@ memory: {workspace_dir / "memory"}
 - Prefer VRAM-fit models when switching. Only use RAM-only models if no VRAM model fits.
 - Do not switch models for trivial tasks. Switch only when the role description matches.
 - Keep transfer_context concise (<=500 tokens). Do not dump the full conversation history.
-- You may append facts to workspace/memory/persistent_memory.md when you learn something
-  worth remembering across sessions.
+- When the user tells you their name, preferences, timezone, projects, or any personal
+  info, UPDATE {workspace_dir}/user_profile.md immediately using run_bash. Read the file
+  first (cat), then rewrite it with the updated content (tee). This is how you remember
+  who the user is across sessions.
+- You may append general facts to {workspace_dir}/memory/persistent_memory.md when you
+  learn something worth remembering across sessions (not user profile info — that goes
+  in user_profile.md).
 - When the user types /settings, enter settings mode to help configure workspace files.
 """
 
