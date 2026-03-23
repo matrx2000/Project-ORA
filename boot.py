@@ -17,6 +17,10 @@ from tools.hardware_probe import probe_hardware
 from tools.ollama_manager import (
     query_ollama_models, write_initial_viable_models, write_viable_models,
 )
+from tools.workspace_resolver import (
+    get_default_workspace, save_workspace_location, check_workspace_git_safety,
+    ensure_inner_gitignore, WorkspaceRepick,
+)
 
 console = Console()
 
@@ -59,7 +63,6 @@ bash_require_confirm: true
 ## Session
 auto_save_session_state: true
 auto_reload_config: false
-workspace_dir: ./workspace
 """
 
 DEFAULT_USER_PROFILE = """\
@@ -368,6 +371,55 @@ def _custom_model_setup(pulled_models: dict[str, float]) -> tuple[list[dict], st
 
 
 # ---------------------------------------------------------------------------
+# Workspace location selection
+# ---------------------------------------------------------------------------
+
+def _select_workspace_location(default_workspace: Path) -> Path:
+    """
+    Ask the user where to store the workspace.  Runs the git safety check.
+    Returns the confirmed workspace path.
+    """
+    platform_default = get_default_workspace()
+
+    console.print("\n[bold]Step 1/6:[/bold] Workspace location\n")
+    console.print(
+        "  Ora OS stores configuration, memory, and session data in a workspace\n"
+        "  directory.  By default this is your OS user-data folder, which keeps\n"
+        "  private files out of any git repository.\n"
+    )
+    console.print(f"  Default: [cyan]{platform_default}[/cyan]\n")
+
+    while True:
+        use_default = Confirm.ask("  Use this location?", default=True)
+
+        if use_default:
+            workspace_dir = platform_default
+        else:
+            raw = Prompt.ask("  Enter workspace path")
+            workspace_dir = Path(raw).expanduser().resolve()
+
+        # Run the git safety check (interactive — may raise WorkspaceRepick)
+        try:
+            safe = check_workspace_git_safety(workspace_dir, console)
+        except WorkspaceRepick:
+            console.print("[dim]Pick a different path...[/dim]\n")
+            continue
+
+        if not safe:
+            console.print("[red]Setup aborted by user.[/red]")
+            sys.exit(1)
+
+        # Ensure the directory exists
+        workspace_dir.mkdir(parents=True, exist_ok=True)
+        ensure_inner_gitignore(workspace_dir)
+
+        # Save the pointer so future runs find the workspace
+        save_workspace_location(workspace_dir)
+        console.print(f"  [green]Workspace: {workspace_dir}[/green]\n")
+        return workspace_dir
+
+
+# ---------------------------------------------------------------------------
 # Original helpers (kept)
 # ---------------------------------------------------------------------------
 
@@ -571,16 +623,20 @@ def _write_workspace_files(
 # Main wizard entry point
 # ---------------------------------------------------------------------------
 
-def run_wizard(workspace_dir: Path, ollama_base_url: str = "http://127.0.0.1:11434") -> None:
+def run_wizard(workspace_dir: Path, ollama_base_url: str = "http://127.0.0.1:11434") -> Path:
     """
     Execute the full first-run wakeup wizard.
-    Writes all workspace files and then returns (main.py launches the agent loop).
+    Writes all workspace files and returns the final workspace directory
+    (which may differ from the input if the user picked a custom path).
     """
-    # Step 1: Safety warning
+    # Step 0: Safety warning
     _require_understand()
 
+    # Step 1: Workspace location (may change workspace_dir)
+    workspace_dir = _select_workspace_location(workspace_dir)
+
     # Step 2: Check Ollama connectivity
-    console.print("\n[bold]Step 1/5:[/bold] Checking Ollama")
+    console.print("\n[bold]Step 2/6:[/bold] Checking Ollama")
     ollama_ok = False
     pulled_models: dict[str, float] = {}
     try:
@@ -618,20 +674,20 @@ def run_wizard(workspace_dir: Path, ollama_base_url: str = "http://127.0.0.1:114
             sys.exit(1)
 
     # Step 3: Bootstrap model
-    console.print("\n[bold]Step 2/5:[/bold] Bootstrap model selection")
+    console.print("\n[bold]Step 3/6:[/bold] Bootstrap model selection")
     bootstrap_model = _pick_bootstrap_model(ollama_base_url, pulled_models)
 
     # Step 4: Hardware probe
-    console.print("\n[bold]Step 3/5:[/bold] Hardware detection")
+    console.print("\n[bold]Step 4/6:[/bold] Hardware detection")
     hardware_summary, _ = probe_hardware(workspace_dir, ollama_base_url)
     console.print(f"[dim]{hardware_summary}[/dim]")
 
     # Step 5: Hardware tier selection / custom model setup
-    console.print("\n[bold]Step 4/5:[/bold] Model configuration")
+    console.print("\n[bold]Step 5/6:[/bold] Model configuration")
     models, default_model = _select_hardware_tier(pulled_models)
 
     # Step 6: Interactive user profile session with bootstrap model
-    console.print("\n[bold]Step 5/5:[/bold] User profile setup\n")
+    console.print("\n[bold]Step 6/6:[/bold] User profile setup\n")
     user_name, _ = _interactive_wizard_session(
         bootstrap_model, ollama_base_url, pulled_models, hardware_summary, workspace_dir,
     )
@@ -655,3 +711,5 @@ def run_wizard(workspace_dir: Path, ollama_base_url: str = "http://127.0.0.1:114
             border_style="green",
         )
     )
+
+    return workspace_dir

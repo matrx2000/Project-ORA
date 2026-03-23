@@ -29,6 +29,9 @@ from tools.ollama_manager import list_models as _list_models, pull_model as _pul
 from tools.context_manager import check_and_compact, get_token_stats
 from tools.network_scanner import run_network_scan, ScoredRemoteModel, NetworkConfig
 from tools.vision_router import route_user_message, VisionResult
+from tools.workspace_resolver import (
+    resolve_workspace, save_workspace_location, run_silent_safety_check,
+)
 
 console = Console()
 
@@ -56,7 +59,6 @@ class OraConfig:
     bash_require_confirm: bool = True
     auto_save_session_state: bool = True
     auto_reload_config: bool = False
-    workspace_dir: str = "./workspace"
 
 
 def _parse_bool(value: str) -> bool:
@@ -113,8 +115,6 @@ def load_config(workspace_dir: Path) -> OraConfig:
         cfg.auto_save_session_state = _parse_bool(raw["auto_save_session_state"])
     if "auto_reload_config" in raw:
         cfg.auto_reload_config = _parse_bool(raw["auto_reload_config"])
-    if "workspace_dir" in raw:
-        cfg.workspace_dir = raw["workspace_dir"]
 
     return cfg
 
@@ -506,23 +506,23 @@ def build_graph(llm_with_tools, tool_node):
 # ---------------------------------------------------------------------------
 
 def main():
-    # Resolve workspace directory relative to this script
     script_dir = Path(__file__).parent
-    default_workspace = script_dir / "workspace"
+
+    # Resolve workspace via workspace.conf → legacy → platformdirs default
+    workspace_dir = resolve_workspace(script_dir)
 
     # Check for first-run
-    if not (default_workspace / "config.md").exists():
-        # Show full safety warning and run wizard
-        run_wizard(default_workspace)
+    if not (workspace_dir / "config.md").exists():
+        # Show full safety warning and run wizard (may change workspace_dir)
+        workspace_dir = run_wizard(workspace_dir)
     else:
         # Brief safety warning on subsequent runs
         console.print(Panel(BRIEF_SAFETY_WARNING, border_style="red"))
+        # Silent git safety check (warns if workspace is inside un-ignored repo)
+        run_silent_safety_check(workspace_dir, console)
 
     # Load config
-    config = load_config(default_workspace)
-    workspace_dir = Path(config.workspace_dir)
-    if not workspace_dir.is_absolute():
-        workspace_dir = script_dir / workspace_dir
+    config = load_config(workspace_dir)
 
     # Ensure workspace directories exist (defensive — files may have been deleted)
     workspace_dir.mkdir(parents=True, exist_ok=True)
