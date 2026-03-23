@@ -877,7 +877,10 @@ def main():
     )
 
     app = OraApp(session)
-    app.run()
+    try:
+        app.run()
+    except LookupError:
+        pass  # Textual shutdown race condition — harmless
 
 
 if __name__ == "__main__":
