@@ -352,7 +352,7 @@ class OraApp(App):
                     yield Static(
                         f"[bold green]O.R.A.[/bold green] ready — model: "
                         f"[cyan]{self.active_model}[/cyan]\n"
-                        f"[dim]Type /settings to open settings. Ctrl+Q to quit.[/dim]",
+                        f"[dim]Type /help for commands. /settings to configure. Ctrl+Q to quit.[/dim]",
                         classes="msg-system",
                     )
                 yield Input(
@@ -614,19 +614,20 @@ class OraApp(App):
     # Settings popup
     # -------------------------------------------------------------------
 
-    async def _open_settings(self) -> None:
-        """Push the settings popup and reload config when it closes."""
-        await self.push_screen_wait(SettingsScreen(self.workspace_dir))
-        self.config = load_config(self.workspace_dir)
-        self._ui_add_system_message("Settings closed. Config reloaded.")
-        self.query_one("#user-input", Input).focus()
+    def _open_settings(self) -> None:
+        """Push the settings popup. Callback fires when it closes."""
+        def on_dismiss(result: bool) -> None:
+            self.config = load_config(self.workspace_dir)
+            self._ui_add_system_message("Settings closed. Config reloaded.")
+            self.query_one("#user-input", Input).focus()
+        self.push_screen(SettingsScreen(self.workspace_dir), callback=on_dismiss)
 
     # -------------------------------------------------------------------
     # Input handling
     # -------------------------------------------------------------------
 
     @on(Input.Submitted, "#user-input")
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
         if not text:
             return
@@ -638,14 +639,49 @@ class OraApp(App):
             self._save_and_exit()
             return
 
+        if lower == "/help":
+            self._show_help()
+            return
+
         if lower.startswith("/settings"):
-            await self._open_settings()
+            self._open_settings()
             return
 
         # Disable input while agent works
         event.input.disabled = True
         self._ui_add_user_message(text)
         self._run_agent_turn(text)
+
+    def _show_help(self) -> None:
+        """Display help text in the conversation panel."""
+        help_text = (
+            "[bold]O.R.A. Commands[/bold]\n"
+            "\n"
+            "  [cyan]/help[/cyan]         Show this help\n"
+            "  [cyan]/settings[/cyan]     Open settings popup (edit workspace files)\n"
+            "  [cyan]exit[/cyan]          Save session and quit\n"
+            "  [cyan]Ctrl+Q[/cyan]        Quit\n"
+            "\n"
+            "[bold]Settings popup[/bold]\n"
+            "\n"
+            "  Click a file in the tree to open it in the editor.\n"
+            "  [cyan]Ctrl+S[/cyan]  Save the current file\n"
+            "  [cyan]Esc[/cyan]     Close the popup (config reloads automatically)\n"
+            "\n"
+            "[bold]Security settings[/bold] (edit [cyan]config.md[/cyan] in /settings)\n"
+            "\n"
+            f"  bash_require_confirm:       [yellow]{self.config.bash_require_confirm}[/yellow]"
+            "  — require y/n before every command\n"
+            f"  bash_restrict_to_workspace: [yellow]{self.config.bash_restrict_to_workspace}[/yellow]"
+            "  — block commands outside workspace\n"
+            f"  bash_warn_destructive:      [yellow]{self.config.bash_warn_destructive}[/yellow]"
+            "  — flag dangerous commands\n"
+            "  bash_exclude_commands:       hard-blocked patterns (always enforced)\n"
+            "\n"
+            "  To change: [cyan]/settings[/cyan] → open [cyan]config.md[/cyan] → "
+            "edit the value → [cyan]Ctrl+S[/cyan] → [cyan]Esc[/cyan]"
+        )
+        self._ui_add_system_message(help_text)
 
     # -------------------------------------------------------------------
     # Agent worker

@@ -883,7 +883,7 @@ def main():
     console.print(f"\n[bold green]O.R.A. starting[/bold green] with model [cyan]{active_model}[/cyan]")
     console.print(f"[dim]  Workspace:  {workspace_dir}[/dim]")
     console.print(f"[dim]  Config:     {get_config_dir()}[/dim]")
-    console.print("[dim]Type 'exit' or press Ctrl+C to quit. Type '/settings' to configure.[/dim]\n")
+    console.print("[dim]Type /help for commands. /settings to configure. exit to quit.[/dim]\n")
 
     # Mutable reference for switch_model tool to always read current active model
     active_model_ref = [active_model]
@@ -988,6 +988,28 @@ def main():
                 break
 
             if not stripped:
+                continue
+
+            # ---------------------------------------------------------------
+            # Help
+            # ---------------------------------------------------------------
+            if lower == "/help":
+                console.print(
+                    "\n[bold]O.R.A. Commands[/bold]\n\n"
+                    "  [cyan]/help[/cyan]              Show this help\n"
+                    "  [cyan]/settings[/cyan]          Enter settings mode (natural language config)\n"
+                    "  [cyan]/settings safety[/cyan]   Focus on safety settings\n"
+                    "  [cyan]/done[/cyan]              Exit settings mode\n"
+                    "  [cyan]exit[/cyan]               Save session and quit\n\n"
+                    "[bold]Security settings[/bold] (in config.md)\n\n"
+                    f"  bash_require_confirm:       [yellow]{config.bash_require_confirm}[/yellow]"
+                    "  — require y/n before every command\n"
+                    f"  bash_restrict_to_workspace: [yellow]{config.bash_restrict_to_workspace}[/yellow]"
+                    "  — block commands outside workspace\n"
+                    f"  bash_warn_destructive:      [yellow]{config.bash_warn_destructive}[/yellow]"
+                    "  — flag dangerous commands\n\n"
+                    f"  Config file: [dim]{workspace_dir / 'config.md'}[/dim]\n"
+                )
                 continue
 
             # ---------------------------------------------------------------
