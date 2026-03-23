@@ -1,16 +1,16 @@
-# Ora OS — Multimodal & Vision Routing Specification v0.1
+# O.R.A. — Multimodal & Vision Routing Specification v0.1
 
 ### O.R.A. — Orchestrated Reasoning Agent
 
 > Companion spec to `project_spec.md`, `network_spec.md`, and `settings_spec.md`.
-> Defines how Ora OS detects, routes, and processes image and file attachments
+> Defines how O.R.A. detects, routes, and processes image and file attachments
 > using a two-stage vision pipeline.
 
 ---
 
 ## Overview
 
-Ora OS supports image and file attachments through a **pre-routing layer** that runs
+O.R.A. supports image and file attachments through a **pre-routing layer** that runs
 before any LLM call. The active instruct model (e.g. `qwen3:4b`) cannot process images —
 it only handles text. When an attachment is detected, the Python framework intercepts it,
 routes it to a vision-capable model first, then passes the resulting text description to

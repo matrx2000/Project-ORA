@@ -1,5 +1,5 @@
 """
-boot.py — First-run wakeup wizard for Ora OS.
+boot.py — First-run wakeup wizard for O.R.A.
 Runs only when workspace/config.md does not exist.
 Includes hardware tier presets and custom model configuration.
 """
@@ -25,7 +25,7 @@ from tools.workspace_resolver import (
 console = Console()
 
 SAFETY_WARNING = """
-Ora OS has unrestricted access to the Linux filesystem and can install packages,
+O.R.A. has unrestricted access to the Linux filesystem and can install packages,
 manage processes, and modify system state.
 
   Run it on a DEDICATED machine that does not contain personal data.
@@ -35,7 +35,7 @@ You have been warned.
 """
 
 DEFAULT_CONFIG_CONTENT = """\
-# Ora OS Config
+# O.R.A. Config
 
 ## Ollama
 base_url: {base_url}
@@ -73,7 +73,7 @@ timezone: UTC
 preferred_language: English
 working_style: direct, minimal explanations
 current_projects:
-  - Ora OS setup
+  - O.R.A. setup
 notes: >
   User completed the first-run wizard.
 """
@@ -383,7 +383,7 @@ def _select_workspace_location(default_workspace: Path) -> Path:
 
     console.print("\n[bold]Step 1/6:[/bold] Workspace location\n")
     console.print(
-        "  Ora OS stores configuration, memory, and session data in a workspace\n"
+        "  O.R.A. stores configuration, memory, and session data in a workspace\n"
         "  directory.  By default this is your OS user-data folder, which keeps\n"
         "  private files out of any git repository.\n"
     )
@@ -493,7 +493,7 @@ def _interactive_wizard_session(
     model_list = "\n".join(f"  - {n} ({s:.1f} GB)" for n, s in pulled_models.items()) or "  (none pulled)"
 
     system_prompt = (
-        "You are helping to configure Ora OS — a locally-hosted agentic AI OS. "
+        "You are helping to configure O.R.A. (Orchestrated Reasoning Agent) — a locally-hosted agentic AI system. "
         "Your job is to help the user set up their profile (name, timezone, working style, projects). "
         "Be concise and practical. Ask one thing at a time. "
         f"\n\nHardware: {hardware_summary}"
@@ -502,12 +502,12 @@ def _interactive_wizard_session(
 
     messages: list[dict] = []
 
-    console.print("\n[bold cyan]Ora OS Wakeup Wizard — User Profile[/bold cyan]")
+    console.print("\n[bold cyan]O.R.A. Wakeup Wizard — User Profile[/bold cyan]")
     console.print("[dim]The bootstrap model will help set up your user profile.[/dim]")
     console.print("[dim]Type 'done' when you are satisfied.[/dim]\n")
 
     opening = (
-        "Hello! I'm going to help you set up your user profile for Ora OS. "
+        "Hello! I'm going to help you set up your user profile for O.R.A. "
         "First, what's your name?"
     )
     console.print(f"[bold cyan]Ora[/bold cyan]: {opening}")
@@ -659,7 +659,7 @@ def run_wizard(workspace_dir: Path, ollama_base_url: str = "http://127.0.0.1:114
         console.print(
             Panel(
                 f"Cannot reach Ollama at [bold]{ollama_base_url}[/bold].\n\n"
-                "Ora OS requires Ollama to run LLMs locally.\n"
+                "O.R.A. requires Ollama to run LLMs locally.\n"
                 "  1. Install Ollama:  [cyan]curl -fsSL https://ollama.com/install.sh | sh[/cyan]\n"
                 "  2. Start Ollama:    [cyan]ollama serve[/cyan]\n"
                 "  3. Pull a model:    [cyan]ollama pull qwen3:4b[/cyan]\n\n"
@@ -706,7 +706,7 @@ def run_wizard(workspace_dir: Path, ollama_base_url: str = "http://127.0.0.1:114
             f"Configuration saved to [bold]{workspace_dir}[/bold].\n"
             f"Default model: [cyan]{default_model or '(none — will prompt at startup)'}[/cyan]\n"
             f"Models configured: {len(models)}\n"
-            "Launching Ora OS...",
+            "Launching O.R.A...",
             title="[bold green]Setup Complete[/bold green]",
             border_style="green",
         )

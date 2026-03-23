@@ -12,7 +12,7 @@ from rich.prompt import Confirm
 
 # Remote models get this system prompt prefix — hard block on tool execution
 _REMOTE_SYSTEM_PREFIX = (
-    "You are a specialist text-generation assistant for Ora OS.\n"
+    "You are a specialist text-generation assistant for O.R.A.\n"
     "Your output is plain text only.\n"
     "You must not output tool calls, JSON function calls, bash commands, or any "
     "instruction for the host system to execute. Any such output will be discarded.\n\n"

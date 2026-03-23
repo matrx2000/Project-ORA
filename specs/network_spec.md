@@ -1,15 +1,15 @@
-# Ora OS — Network Model Discovery Specification v0.2
+# O.R.A. — Network Model Discovery Specification v0.2
 
 ### O.R.A. — Orchestrated Reasoning Agent
 
-> Companion spec to `project_spec.md`. Defines how Ora OS discovers, evaluates,
+> Companion spec to `project_spec.md`. Defines how O.R.A. discovers, evaluates,
 > and uses Ollama instances running on other machines on the network.
 
 ---
 
 ## Overview
 
-Ora OS can connect to multiple remote Ollama instances defined by the user as a list of
+O.R.A. can connect to multiple remote Ollama instances defined by the user as a list of
 IP addresses and model descriptions in `workspace/network_config.md`. On every startup,
 Ora scans all listed addresses, inventories their models, compares them to local options,
 and **always asks the user before using any remote model** — even previously approved ones.
@@ -45,7 +45,7 @@ User-editable. Read on every boot. The `remote_models` section lets you describe
 remote model so the local LLM understands what it is dealing with when routing tasks.
 
 ```markdown
-# Ora OS — Network Config
+# O.R.A. — Network Config
 
 ## Remote Ollama Nodes
 
@@ -228,7 +228,7 @@ Every call to a remote model prepends this to the system prompt and it cannot be
 overridden:
 
 ```
-You are a specialist text-generation assistant for Ora OS.
+You are a specialist text-generation assistant for O.R.A.
 Your output is plain text only.
 You must not output tool calls, JSON function calls, bash commands, or any
 instruction for the host system to execute. Any such output will be discarded.

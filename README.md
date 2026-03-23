@@ -2,7 +2,7 @@
 
 **O.R.A. — Orchestrated Reasoning Agent**
 
-Ora OS is a locally-hosted, self-bootstrapping agentic operating system. Linux is the base
+O.R.A. is a locally-hosted, self-bootstrapping agentic operating system. Linux is the base
 layer — managing hardware, files, and processes — and a fleet of local LLMs served by
 [Ollama](https://ollama.com) is the intelligence layer. The agent can reason, switch
 specialist models on demand, see images, manage its own context, and operate the underlying
@@ -10,7 +10,7 @@ Linux system autonomously.
 
 Everything runs on your machine. No cloud APIs. No data leaves the box.
 
-> **WARNING** — Ora OS has unrestricted access to the Linux filesystem and can install
+> **WARNING** — O.R.A. has unrestricted access to the Linux filesystem and can install
 > packages, manage processes, and modify system state. **Run it on a dedicated machine
 > that does not contain personal data.** Do not run it on your daily driver.
 >

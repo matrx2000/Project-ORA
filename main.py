@@ -1,5 +1,5 @@
 """
-main.py — Ora OS entry point.
+main.py — O.R.A. entry point.
 Boot sequence + LangGraph ReAct agent loop + /settings mode.
 """
 import sys
@@ -18,7 +18,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 
-# Local modules — add ora_os/ directory to sys.path so tools/ resolves correctly
+# Local modules — add project directory to sys.path so tools/ resolves correctly
 sys.path.insert(0, str(Path(__file__).parent))
 
 from boot import run_wizard
@@ -36,7 +36,7 @@ from tools.workspace_resolver import (
 console = Console()
 
 BRIEF_SAFETY_WARNING = (
-    "[bold red]WARNING:[/bold red] Ora OS has unrestricted Linux access. "
+    "[bold red]WARNING:[/bold red] O.R.A. has unrestricted Linux access. "
     "Run only on a dedicated machine."
 )
 
@@ -154,7 +154,7 @@ def _build_system_prompt(
         )
         remote_section = "\n".join(remote_lines)
 
-    return f"""You are Ora OS — an autonomous local AI agent running on Linux via Ollama.
+    return f"""You are O.R.A. (Orchestrated Reasoning Agent) — an autonomous local AI agent running on Linux via Ollama.
 
 [user]
 {user_profile}
@@ -200,7 +200,7 @@ def _build_system_prompt(
 # ---------------------------------------------------------------------------
 
 SETTINGS_SYSTEM_PROMPT = """\
-You are Ora OS in settings mode. Your only job is to help the user read and
+You are O.R.A. in settings mode. Your only job is to help the user read and
 modify workspace configuration files. You may only read and write files in
 the workspace/ directory. You must always show a plain-language diff and
 receive explicit confirmation before writing any file. Never run bash commands
@@ -473,8 +473,108 @@ def _save_exit_summary(
 State = dict  # We manage messages externally; graph receives full history each call
 
 
+# ---------------------------------------------------------------------------
+# Streaming printer with <think> tag support
+# ---------------------------------------------------------------------------
+
+class ThinkingStreamPrinter:
+    """
+    Streams LLM output to the terminal token-by-token.
+    Content inside <think>...</think> is displayed dimmed so the user can see
+    the model's chain-of-thought reasoning separately from the final response.
+    """
+
+    THINK_START = "<think>"
+    THINK_END = "</think>"
+    DIM = "\033[2m"
+    DIM_ITALIC = "\033[2;3m"
+    BOLD = "\033[1m"
+    RESET = "\033[0m"
+
+    def __init__(self):
+        self.in_think = False
+        self.buffer = ""
+        self.header_printed = False
+        self.has_content = False
+
+    def _write(self, text: str) -> None:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+
+    def _print_header(self) -> None:
+        if not self.header_printed:
+            self._write(f"\n{self.BOLD}Ora{self.RESET}: ")
+            self.header_printed = True
+
+    def feed(self, text: str) -> None:
+        """Feed a chunk of streamed text. Handles <think> tag boundaries."""
+        self.buffer += text
+        self._process()
+
+    def _process(self) -> None:
+        while self.buffer:
+            if self.in_think:
+                idx = self.buffer.find(self.THINK_END)
+                if idx == -1:
+                    # Partial — emit all but last len(THINK_END)-1 chars
+                    safe = len(self.buffer) - (len(self.THINK_END) - 1)
+                    if safe > 0:
+                        self._print_header()
+                        self.has_content = True
+                        self._write(f"{self.DIM_ITALIC}{self.buffer[:safe]}{self.RESET}")
+                        self.buffer = self.buffer[safe:]
+                    return
+                else:
+                    chunk = self.buffer[:idx]
+                    if chunk:
+                        self._print_header()
+                        self.has_content = True
+                        self._write(f"{self.DIM_ITALIC}{chunk}{self.RESET}")
+                    self._write("\n")
+                    self.buffer = self.buffer[idx + len(self.THINK_END):]
+                    self.in_think = False
+            else:
+                idx = self.buffer.find(self.THINK_START)
+                if idx == -1:
+                    safe = len(self.buffer) - (len(self.THINK_START) - 1)
+                    if safe > 0:
+                        self._print_header()
+                        self.has_content = True
+                        self._write(self.buffer[:safe])
+                        self.buffer = self.buffer[safe:]
+                    return
+                else:
+                    chunk = self.buffer[:idx]
+                    if chunk:
+                        self._print_header()
+                        self.has_content = True
+                        self._write(chunk)
+                    self._print_header()
+                    self._write(f"\n{self.DIM_ITALIC}[thinking] ")
+                    self.has_content = True
+                    self.buffer = self.buffer[idx + len(self.THINK_START):]
+                    self.in_think = True
+
+    def finish(self) -> None:
+        """Flush remaining buffer and close any open styling."""
+        if self.buffer:
+            self._print_header()
+            self.has_content = True
+            if self.in_think:
+                self._write(f"{self.DIM_ITALIC}{self.buffer}{self.RESET}")
+            else:
+                self._write(self.buffer)
+            self.buffer = ""
+        if self.has_content:
+            self._write(f"{self.RESET}\n\n")
+
+
+# ---------------------------------------------------------------------------
+# LangGraph agent builder
+# ---------------------------------------------------------------------------
+
 def build_graph(llm_with_tools, tool_node):
-    """Build a LangGraph ReAct graph."""
+    """Build a LangGraph ReAct graph with streaming output."""
     from typing import TypedDict
 
     class AgentState(TypedDict):
@@ -483,8 +583,21 @@ def build_graph(llm_with_tools, tool_node):
     graph = StateGraph(AgentState)
 
     def call_llm(state: AgentState) -> AgentState:
-        response = llm_with_tools.invoke(state["messages"])
-        return {"messages": [response]}
+        printer = ThinkingStreamPrinter()
+        full_response = None
+
+        for chunk in llm_with_tools.stream(state["messages"]):
+            if full_response is None:
+                full_response = chunk
+            else:
+                full_response = full_response + chunk
+
+            # Stream content tokens to terminal (tool-call chunks have no .content)
+            if chunk.content:
+                printer.feed(chunk.content)
+
+        printer.finish()
+        return {"messages": [full_response]}
 
     def route(state: AgentState) -> str:
         last = state["messages"][-1]
@@ -554,7 +667,7 @@ def main():
             default=fit_rows[0]["model"] if fit_rows else "phi4-mini",
         )
 
-    console.print(f"\n[bold green]Ora OS starting[/bold green] with model [cyan]{active_model}[/cyan]")
+    console.print(f"\n[bold green]O.R.A. starting[/bold green] with model [cyan]{active_model}[/cyan]")
     console.print("[dim]Type 'exit' or press Ctrl+C to quit. Type '/settings' to configure.[/dim]\n")
 
     # Mutable reference for switch_model tool to always read current active model
@@ -652,7 +765,7 @@ def main():
                 focus_label = f" ({settings_focus})" if settings_focus else ""
                 console.print(
                     f"\n[bold yellow][ora/settings][/bold yellow] Settings mode active{focus_label}. "
-                    "I can help you configure any aspect of Ora OS.\n"
+                    "I can help you configure any aspect of O.R.A.\n"
                     "  Type [bold]/done[/bold] to return to normal mode.\n"
                     "  What would you like to change?"
                 )
@@ -722,11 +835,7 @@ def main():
                 console.print(f"[red]Agent error: {exc}[/red]")
                 continue
 
-            # Print last assistant message
-            last = messages[-1]
-            content = last.content if hasattr(last, "content") else str(last)
-            if content:
-                console.print(f"\n[bold]Ora[/bold]: {content}\n")
+            # Response was already streamed to terminal by call_llm
 
             # Context management (transparent — runs after every response)
             messages, overflow_count = check_and_compact(

@@ -1,4 +1,4 @@
-# Ora OS — Workspace Location Specification v0.1
+# O.R.A. — Workspace Location Specification v0.1
 
 ### O.R.A. — Orchestrated Reasoning Agent
 
@@ -81,7 +81,7 @@ Contents — a single line with the absolute path:
 
 ### Resolver priority
 
-When Ora OS starts, it resolves the workspace in this order:
+When O.R.A. starts, it resolves the workspace in this order:
 
 ```
 1. Read workspace.conf → if the path exists and contains config.md, use it
@@ -122,7 +122,7 @@ Ollama connectivity check:
 ```
 Step 1/6: Workspace location
 
-  Ora OS stores configuration, memory, and session data in a workspace directory.
+  O.R.A. stores configuration, memory, and session data in a workspace directory.
   By default this is your OS user-data folder, which keeps private files out of
   any git repository.
 
@@ -196,7 +196,7 @@ Regardless of location, the wizard always creates a `.gitignore` inside the
 workspace directory:
 
 ```gitignore
-# This directory contains private Ora OS user data.
+# This directory contains private O.R.A. user data.
 # It should NEVER be committed to version control.
 *
 ```

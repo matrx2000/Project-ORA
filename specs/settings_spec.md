@@ -1,15 +1,15 @@
-# Ora OS — Settings Mode Specification v0.1
+# O.R.A. — Settings Mode Specification v0.1
 
 ### O.R.A. — Orchestrated Reasoning Agent
 
 > Companion spec to `project_spec.md` and `network_spec.md`. Defines how the user
-> can configure Ora OS through a natural language chat interface mid-session.
+> can configure O.R.A. through a natural language chat interface mid-session.
 
 ---
 
 ## Overview
 
-Settings mode is a special conversational state within a running Ora OS session. The user
+Settings mode is a special conversational state within a running O.R.A. session. The user
 enters it by typing `/settings` at any point. Ora switches into a focused configuration
 assistant persona, helps the user read and modify any workspace markdown file, shows a diff
 of proposed changes, and writes them only after explicit confirmation.
@@ -35,7 +35,7 @@ types `/done` or `exit settings`.
 On entering, Ora prints:
 
 ```
-[ora/settings] Settings mode active. I can help you configure any aspect of Ora OS.
+[ora/settings] Settings mode active. I can help you configure any aspect of O.R.A.
   Type /done to return to normal mode.
   What would you like to change?
 ```
@@ -193,7 +193,7 @@ than normal mode, more structured. It:
 The system prompt is temporarily replaced with a settings-specific one:
 
 ```
-You are Ora OS in settings mode. Your only job is to help the user read and
+You are O.R.A. in settings mode. Your only job is to help the user read and
 modify workspace configuration files. You may only read and write files in
 the workspace/ directory. You must always show a plain-language diff and
 receive explicit confirmation before writing any file. Never run bash commands

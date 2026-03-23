@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------
-# Ora OS — install script
+# O.R.A. — install script
 # Sets up Python venv, installs dependencies, and verifies prerequisites.
 # Usage:  chmod +x install.sh && ./install.sh
 # -----------------------------------------------------------------------
@@ -25,7 +25,7 @@ fail()  { echo -e "${RED}[ora]${NC} $*"; exit 1; }
 
 # -- change to script directory -----------------------------------------
 cd "$(dirname "$0")"
-info "Installing Ora OS from $(pwd)"
+info "Installing O.R.A. from $(pwd)"
 echo
 
 # -----------------------------------------------------------------------
@@ -67,7 +67,7 @@ if command -v ollama &>/dev/null; then
     ok "Found ollama ($OLLAMA_VER)"
 else
     warn "Ollama not found on PATH."
-    warn "Ora OS requires Ollama to run LLMs locally."
+    warn "O.R.A. requires Ollama to run LLMs locally."
     warn "Install it:  curl -fsSL https://ollama.com/install.sh | sh"
     echo
 fi
@@ -119,20 +119,20 @@ print('All imports OK')
 " 2>/dev/null && ok "All packages import correctly." \
              || warn "Some imports failed — check the output above."
 
-# pynvml is optional (only needed for NVIDIA GPU detection)
+# nvidia-ml-py is optional (only needed for NVIDIA GPU detection)
 "$PYTHON" -c "import pynvml" 2>/dev/null \
-    && ok "pynvml available (NVIDIA GPU detection enabled)" \
-    || warn "pynvml not available — NVIDIA GPU detection will be skipped. (This is fine if you don't have an NVIDIA GPU.)"
+    && ok "nvidia-ml-py available (NVIDIA GPU detection enabled)" \
+    || warn "nvidia-ml-py not available — NVIDIA GPU detection will be skipped. (This is fine if you don't have an NVIDIA GPU.)"
 
 # -----------------------------------------------------------------------
 # 6. Summary
 # -----------------------------------------------------------------------
 echo
 echo -e "${BOLD}-------------------------------------------------------${NC}"
-echo -e "${GREEN}${BOLD}  Ora OS installation complete.${NC}"
+echo -e "${GREEN}${BOLD}  O.R.A. installation complete.${NC}"
 echo -e "${BOLD}-------------------------------------------------------${NC}"
 echo
-echo -e "  ${BOLD}To start Ora OS:${NC}"
+echo -e "  ${BOLD}To start O.R.A.:${NC}"
 echo
 echo -e "    source $VENV_DIR/bin/activate"
 echo -e "    python main.py"

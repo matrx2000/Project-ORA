@@ -1,9 +1,9 @@
-# Ora OS — Project Specification v0.1
+# O.R.A. — Project Specification v0.1
 ### O.R.A. — Orchestrated Reasoning Agent
 
 ## Vision
 
-**Ora OS** is a locally-hosted, self-bootstrapping agentic operating system where Linux is
+**O.R.A.** is a locally-hosted, self-bootstrapping agentic operating system where Linux is
 the base layer — managing hardware, files, and processes — and a fleet of local LLMs (served
 by Ollama) is the intelligence layer. The agent can reason, switch specialist models on
 demand, manage its own context, and operate the underlying Linux system autonomously.
@@ -13,7 +13,7 @@ manages its own model selection, persists memory across sessions, and exposes it
 **v1 is the foundation**: terminal-first, single machine, local models only.
 
 > ⚠️ **SAFETY WARNING — displayed prominently on every startup:**
-> Ora OS has unrestricted access to the Linux filesystem and can install packages, manage
+> O.R.A. has unrestricted access to the Linux filesystem and can install packages, manage
 > processes, and modify system state. **Run it on a dedicated machine that does not contain
 > personal data.** Do not run it on your daily driver. You have been warned.
 
@@ -30,7 +30,7 @@ manages its own model selection, persists memory across sessions, and exposes it
 
 **Future interface iterations (out of scope for v1, noted for roadmap):**
 - Web UI (browser-based chat/dashboard)
-- REST API (so other machines or scripts can send tasks to Ora OS)
+- REST API (so other machines or scripts can send tasks to O.R.A.)
 - Mobile app interface
 - Multi-machine / cluster mode
 
@@ -71,7 +71,7 @@ ora_os/
 
 ### First Run — Wakeup Wizard (`boot.py`)
 
-On first launch (detected by absence of `workspace/config.md`), Ora OS runs an interactive
+On first launch (detected by absence of `workspace/config.md`), O.R.A. runs an interactive
 terminal wizard that:
 
 1. Displays the **safety warning** in full and requires the user to type `I UNDERSTAND` to
@@ -118,7 +118,7 @@ User-editable. Read on every boot. Can be edited before launch to change bootstr
 or default model without entering the wizard again.
 
 ```markdown
-# Ora OS Config
+# O.R.A. Config
 
 ## Ollama
 base_url: http://127.0.0.1:11434
@@ -153,7 +153,7 @@ workspace_dir: ./workspace
 
 ### `workspace/viable_models.md`
 
-The master list of models Ora OS is permitted to use. Written initially by the wakeup
+The master list of models O.R.A. is permitted to use. Written initially by the wakeup
 wizard; editable by the user at any time; the agent can also append entries if it determines
 a new model would be beneficial (subject to hardware fit check).
 
@@ -238,7 +238,7 @@ timezone: Europe/Zagreb
 preferred_language: English
 working_style: direct, no unnecessary explanations
 current_projects:
-  - Ora OS development
+  - O.R.A. development
   - Stock price scraper in Python
 notes: >
   Prefers concise responses. Comfortable with Linux. Wants the agent to act autonomously
@@ -328,7 +328,7 @@ _Last summarised: 2025-01-01 10:08:44_
 _Overflow events this session: 2_
 
 ## Summary
-User is setting up Ora OS on a fresh Ubuntu 24.04 machine. Completed: installed Ollama,
+User is setting up O.R.A. on a fresh Ubuntu 24.04 machine. Completed: installed Ollama,
 pulled qwen3-coder:30b and deepseek-r1:14b, confirmed CUDA backend active.
 In progress: writing the systemd unit file for auto-start on boot.
 Blocked: systemd service fails with exit code 203 — likely a PATH issue with the venv.
@@ -486,7 +486,7 @@ The confirmation prompt shows the exact command string.
 Injected at the start of every session and after every context compaction:
 
 ```
-You are Ora OS — an autonomous local AI agent running on Linux via Ollama.
+You are O.R.A. — an autonomous local AI agent running on Linux via Ollama.
 
 [user]
 {user_profile}

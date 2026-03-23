@@ -1,5 +1,5 @@
 """
-workspace_resolver.py — Locate or create the Ora OS workspace directory.
+workspace_resolver.py — Locate or create the O.R.A. workspace directory.
 
 The workspace contains all user configuration and memory files. By default it
 lives in the OS-standard user data directory (via platformdirs) to keep private
@@ -151,13 +151,13 @@ def add_to_gitignore(path: Path, repo_root: Path) -> bool:
         if not existing.endswith("\n"):
             existing += "\n"
         existing += (
-            f"\n# Ora OS workspace — contains private user data\n"
+            f"\n# O.R.A. workspace — contains private user data\n"
             f"{pattern}\n"
         )
         gitignore.write_text(existing, encoding="utf-8")
     else:
         gitignore.write_text(
-            f"# Ora OS workspace — contains private user data\n"
+            f"# O.R.A. workspace — contains private user data\n"
             f"{pattern}\n",
             encoding="utf-8",
         )
@@ -174,7 +174,7 @@ def ensure_inner_gitignore(workspace_dir: Path) -> None:
     inner = workspace_dir / ".gitignore"
     if not inner.exists():
         inner.write_text(
-            "# This directory contains private Ora OS user data.\n"
+            "# This directory contains private O.R.A. user data.\n"
             "# It should NEVER be committed to version control.\n"
             "*\n",
             encoding="utf-8",
