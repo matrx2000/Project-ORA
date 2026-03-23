@@ -634,11 +634,20 @@ class OraApp(App):
 
     def _request_confirm(self, command: str, is_destructive: bool) -> bool:
         """Called from worker thread. Pushes modal and blocks until answered."""
-        future = asyncio.run_coroutine_threadsafe(
-            self.push_screen_wait(ConfirmScreen(command, is_destructive)),
-            self._loop,
+        event = threading.Event()
+        result_holder = [False]
+
+        def on_dismiss(confirmed: bool) -> None:
+            result_holder[0] = confirmed
+            event.set()
+
+        self.call_from_thread(
+            self.push_screen,
+            ConfirmScreen(command, is_destructive),
+            on_dismiss,
         )
-        return future.result(timeout=300)
+        event.wait(timeout=300)
+        return result_holder[0]
 
     # -------------------------------------------------------------------
     # Settings popup
