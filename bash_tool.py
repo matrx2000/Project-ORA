@@ -98,7 +98,12 @@ def _is_destructive(command: str) -> bool:
     return any(p.search(command) for p in _DESTRUCTIVE_PATTERNS)
 
 
-def make_run_bash_tool(config, console: Console, workspace_dir: Path | None = None):
+def make_run_bash_tool(
+    config,
+    console: Console | None = None,
+    workspace_dir: Path | None = None,
+    confirm_callback=None,
+):
     """
     Factory that returns a run_bash function bound to current config.
 
@@ -107,6 +112,9 @@ def make_run_bash_tool(config, console: Console, workspace_dir: Path | None = No
         bash_require_confirm (bool)
         bash_restrict_to_workspace (bool)  — block commands targeting paths outside workspace
         bash_warn_destructive (bool)       — show [DESTRUCTIVE] tag on dangerous commands
+
+    confirm_callback: optional callable(command: str, is_destructive: bool) -> bool
+        When provided, used instead of console-based Confirm.ask (for TUI mode).
     """
     extra_blocked: list[str] = getattr(config, "bash_exclude_commands", [])
     restrict_to_ws: bool = getattr(config, "bash_restrict_to_workspace", True)
@@ -157,15 +165,20 @@ def make_run_bash_tool(config, console: Console, workspace_dir: Path | None = No
                     "Disable this restriction in /settings safety if you need full OS access."
                 )
 
-        # Build confirmation prompt
         is_destructive = warn_destructive and _is_destructive(command)
-        tag = "[bold red][DESTRUCTIVE][/bold red] " if is_destructive else ""
 
-        console.print(f"\n{tag}[bold]Run:[/bold] [cyan]{command}[/cyan]")
-
-        if config.bash_require_confirm:
-            if not Confirm.ask("Execute?", default=False):
-                return "Command cancelled by user."
+        # Confirmation — TUI callback or CLI prompt
+        if confirm_callback:
+            if config.bash_require_confirm:
+                if not confirm_callback(command, is_destructive):
+                    return "Command cancelled by user."
+        else:
+            tag = "[bold red][DESTRUCTIVE][/bold red] " if is_destructive else ""
+            if console:
+                console.print(f"\n{tag}[bold]Run:[/bold] [cyan]{command}[/cyan]")
+            if config.bash_require_confirm:
+                if not Confirm.ask("Execute?", default=False):
+                    return "Command cancelled by user."
 
         # Execute
         try:

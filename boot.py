@@ -124,8 +124,8 @@ TIER_PRESETS = {
         "name": "Jetson Orin Nano / Low-end (<=8GB)",
         "description": "~5.5GB usable. One model at a time, hot-swap between calls.",
         "models": [
-            {"model": "qwen3:4b", "size_gb": 2.5, "role": "instruct",
-             "capabilities": "text", "notes": "default model, strong tool use", "auto_pull": True},
+            {"model": "mistral-small3.1:24b-24q4_K_M", "size_gb": 2.0, "role": "instruct",
+             "capabilities": "text", "notes": "default model, compact and capable", "auto_pull": True},
             {"model": "qwen2.5-vl:3b", "size_gb": 2.0, "role": "vision",
              "capabilities": "text,images", "notes": "vision model, Jetson-optimised", "auto_pull": True},
             {"model": "deepseek-r1:1.5b", "size_gb": 1.0, "role": "reasoning",
@@ -133,7 +133,7 @@ TIER_PRESETS = {
             {"model": "phi4-mini:3.8b", "size_gb": 2.3, "role": "fast",
              "capabilities": "text", "notes": "fast alternative instruct", "auto_pull": True},
         ],
-        "default_model": "qwen3:4b",
+        "default_model": "mistral-small3.1:24b-24q4_K_M",
     },
     "2": {
         "name": "Mid-range desktop (RTX 3080 / ~10GB VRAM)",

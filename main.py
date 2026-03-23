@@ -810,54 +810,75 @@ def build_graph(llm_with_tools, tool_node, console: Console | None = None):
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def main():
+def setup_session(cli_console: Console | None = None) -> dict:
+    """
+    Shared session setup for both CLI and TUI modes.
+    Runs the wizard if needed, loads config, probes hardware, scans network,
+    and selects the active model. Returns a dict with all session state.
+    """
+    _con = cli_console or Console()
     script_dir = Path(__file__).parent
 
-    # Resolve workspace via workspace.conf → legacy → platformdirs default
     workspace_dir = resolve_workspace(script_dir)
 
-    # Check for first-run
     if not (workspace_dir / "config.md").exists():
-        # Show full safety warning and run wizard (may change workspace_dir)
         workspace_dir = run_wizard(workspace_dir)
     else:
-        # Brief safety warning on subsequent runs
-        console.print(Panel(BRIEF_SAFETY_WARNING, border_style="red"))
-        # Silent git safety check (warns if workspace is inside un-ignored repo)
-        run_silent_safety_check(workspace_dir, console)
+        _con.print(Panel(BRIEF_SAFETY_WARNING, border_style="red"))
+        run_silent_safety_check(workspace_dir, _con)
 
-    # Load config
     config = load_config(workspace_dir)
 
-    # Ensure workspace directories exist (defensive — files may have been deleted)
     workspace_dir.mkdir(parents=True, exist_ok=True)
     (workspace_dir / "memory").mkdir(parents=True, exist_ok=True)
 
-    # Hardware probe (refresh on every boot)
     hardware_summary, fit_rows = probe_hardware(workspace_dir, config.ollama_base_url)
 
-    # Network scan (after hardware probe, before model selection)
     session_decisions, scored_remote, net_cfg = run_network_scan(
-        workspace_dir, fit_rows, console,
+        workspace_dir, fit_rows, _con,
     )
 
-    # Build list of approved remote models for system prompt injection
     approved_remote = [
         s for s in scored_remote
         if session_decisions.get((s.node_label, s.model)) == "approved"
     ]
 
-    # Select active model
     active_model = config.default_model
     if not active_model:
-        console.print("\n[bold]Available models (from hardware probe):[/bold]")
+        _con.print("\n[bold]Available models (from hardware probe):[/bold]")
         for r in fit_rows:
             vram = "VRAM" if r.get("fits_vram") else ("RAM" if r.get("fits_ram") else "NO FIT")
-            console.print(f"  {r['model']} ({r['size_gb']} GB) — {vram}")
+            _con.print(f"  {r['model']} ({r['size_gb']} GB) — {vram}")
         active_model = Prompt.ask(
             "\n[bold]Select model for this session[/bold]",
             default=fit_rows[0]["model"] if fit_rows else "phi4-mini",
         )
+
+    system_prompt = _build_system_prompt(workspace_dir, hardware_summary, config, approved_remote)
+
+    return {
+        "workspace_dir": workspace_dir,
+        "config": config,
+        "active_model": active_model,
+        "hardware_summary": hardware_summary,
+        "fit_rows": fit_rows,
+        "session_decisions": session_decisions,
+        "scored_remote": scored_remote,
+        "approved_remote": approved_remote,
+        "system_prompt": system_prompt,
+    }
+
+
+def main():
+    session = setup_session(console)
+    workspace_dir = session["workspace_dir"]
+    config = session["config"]
+    active_model = session["active_model"]
+    hardware_summary = session["hardware_summary"]
+    fit_rows = session["fit_rows"]
+    session_decisions = session["session_decisions"]
+    scored_remote = session["scored_remote"]
+    approved_remote = session["approved_remote"]
 
     console.print(f"\n[bold green]O.R.A. starting[/bold green] with model [cyan]{active_model}[/cyan]")
     console.print(f"[dim]  Workspace:  {workspace_dir}[/dim]")
@@ -939,11 +960,8 @@ def main():
     # Build graph
     agent_graph = build_graph(llm_with_tools, tool_node, console)
 
-    # Build initial system prompt (with remote model info)
-    system_prompt = _build_system_prompt(workspace_dir, hardware_summary, config, approved_remote)
-
     # Session state
-    messages: list = [SystemMessage(content=system_prompt)]
+    messages: list = [SystemMessage(content=session["system_prompt"])]
     overflow_count = 0
 
     # Settings mode state

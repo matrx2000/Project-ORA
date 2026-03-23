@@ -80,6 +80,14 @@ Everything runs on your machine. No cloud APIs. No data leaves the box.
   summarised automatically and the session continues without interruption
 - Session summaries persist across restarts so the agent remembers what happened last time
 
+### Terminal UI (Textual)
+- Three-panel layout: **Thinking & Tools** (left) | **Conversation** (center) | **Settings** (right)
+- Model thinking/reasoning streamed in real time to the left panel
+- Tool calls and results visible as they happen
+- Built-in file editor for workspace files — open with `/settings`, edit, and save directly
+- Bash command confirmation via modal dialog
+- Classic CLI mode available with `./run.sh --cli`
+
 ### Model Switching
 - Role-based routing: `reasoning`, `coding`, `fast`, `vision`, `instruct`
 - The agent decides when to delegate to a specialist and writes a compact context transfer
@@ -157,14 +165,16 @@ ollama pull qwen3:4b      # or any model you want to use
 ### 3. Launch
 
 ```bash
-./run.sh
+./run.sh          # TUI mode (three-panel interface)
+./run.sh --cli    # Classic terminal mode (single stream)
 ```
 
 Or manually:
 
 ```bash
 source .venv/bin/activate
-python main.py
+python tui.py     # TUI mode
+python main.py    # Classic CLI mode
 ```
 
 ### 4. Uninstall
@@ -225,7 +235,7 @@ This is where you set up your model fleet. You have two options:
 
 | Tier | Target Hardware | Models |
 |------|----------------|--------|
-| 1 | Jetson / Low-end (<=8GB) | qwen3:4b, qwen2.5-vl:3b, deepseek-r1:1.5b, phi4-mini:3.8b |
+| 1 | Jetson / Low-end (<=8GB) | mistral-small3.1:24b-24q4_K_M, qwen2.5-vl:3b, deepseek-r1:1.5b, phi4-mini:3.8b |
 | 2 | Mid-range (RTX 3080 ~10GB) | qwen3:8b, qwen2.5-vl:7b, deepseek-r1:7b, qwen3:4b |
 | 3 | High-end (RTX 4090 ~24GB) | qwen3-coder:30b, qwen2.5-vl:7b, deepseek-r1:14b, qwen3:4b |
 
@@ -260,7 +270,8 @@ You can edit any of them at any time — between sessions or even during a sessi
 
 ```
 Project-ORA/
-|-- main.py                  # Entry point: boot sequence, agent loop, /settings mode
+|-- tui.py                   # TUI entry point: three-panel Textual interface
+|-- main.py                  # CLI entry point: classic terminal mode, shared setup logic
 |-- boot.py                  # First-run wakeup wizard with tier presets
 |-- bash_tool.py             # Restricted shell execution with confirmation
 |-- requirements.txt         # Python dependencies
@@ -295,6 +306,7 @@ Project-ORA/
 |   |-- settings_spec.md     # /settings conversational configuration mode
 |   |-- multimodal_spec.md   # Vision pipeline, hardware tier presets
 |   |-- workspace_location_spec.md  # Workspace location, platformdirs, git safety
+|   |-- tui_spec.md             # Three-panel Textual TUI layout and architecture
 ```
 
 ---
@@ -310,6 +322,7 @@ The design of every subsystem is documented in detail in the `specs/` directory:
 | [settings_spec.md](specs/settings_spec.md) | `/settings` conversational configuration mode, diff-and-confirm workflow, what can and cannot be changed mid-session |
 | [multimodal_spec.md](specs/multimodal_spec.md) | Vision routing pipeline, two-stage describe-then-reason strategy, capabilities column in viable_models.md, hardware tier presets, graceful failure cases |
 | [workspace_location_spec.md](specs/workspace_location_spec.md) | Workspace stored outside the repo via `platformdirs`, git safety checks, boot wizard workspace selection, `workspace.conf` pointer file |
+| [tui_spec.md](specs/tui_spec.md) | Three-panel Textual TUI layout, streaming thinking/response to separate panels, settings file editor, bash confirmation modal, async agent worker, keybindings |
 
 These specs are the source of truth for how each feature is designed and should behave.
 If you want to understand why something works the way it does, start here.
