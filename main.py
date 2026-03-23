@@ -670,9 +670,11 @@ def _try_parse_text_tool_calls(message):
     return message
 
 
-def build_graph(llm_with_tools, tool_node):
-    """Build a LangGraph ReAct graph with streaming output."""
+def build_graph(llm_with_tools, tool_node, console: Console | None = None):
+    """Build a LangGraph ReAct graph with streaming output and tool visibility."""
     from typing import TypedDict
+
+    _con = console or Console()
 
     class AgentState(TypedDict):
         messages: Annotated[list, add_messages]
@@ -699,7 +701,38 @@ def build_graph(llm_with_tools, tool_node):
         # using the structured tool_calls format. Parse and convert them.
         full_response = _try_parse_text_tool_calls(full_response)
 
+        # Show tool calls the model is about to make
+        if hasattr(full_response, "tool_calls") and full_response.tool_calls:
+            for tc in full_response.tool_calls:
+                name = tc.get("name", "?")
+                args = tc.get("args", {})
+                # run_bash already prints the command in its own confirmation prompt
+                if name == "run_bash":
+                    _con.print(f"  [dim]> tool:[/dim] [yellow]{name}[/yellow]")
+                else:
+                    args_short = ", ".join(f"{k}={v!r}" for k, v in args.items())
+                    if len(args_short) > 120:
+                        args_short = args_short[:117] + "..."
+                    _con.print(
+                        f"  [dim]> tool:[/dim] [yellow]{name}[/yellow]"
+                        f"[dim]({args_short})[/dim]"
+                    )
+
         return {"messages": [full_response]}
+
+    def call_tools(state: AgentState) -> AgentState:
+        result = tool_node.invoke(state)
+        # Show tool results (truncated for readability)
+        for msg in result.get("messages", []):
+            content = getattr(msg, "content", "")
+            name = getattr(msg, "name", "tool")
+            # run_bash output is already shown via subprocess, skip duplication
+            if name == "run_bash":
+                continue
+            if content:
+                preview = content if len(content) <= 200 else content[:197] + "..."
+                _con.print(f"  [dim]< {name}:[/dim] {preview}")
+        return result
 
     def route(state: AgentState) -> str:
         last = state["messages"][-1]
@@ -708,7 +741,7 @@ def build_graph(llm_with_tools, tool_node):
         return END
 
     graph.add_node("agent", call_llm)
-    graph.add_node("tools", tool_node)
+    graph.add_node("tools", call_tools)
     graph.set_entry_point("agent")
     graph.add_conditional_edges("agent", route, {"tools": "tools", END: END})
     graph.add_edge("tools", "agent")
@@ -845,7 +878,7 @@ def main():
     tool_node = ToolNode(tools)
 
     # Build graph
-    agent_graph = build_graph(llm_with_tools, tool_node)
+    agent_graph = build_graph(llm_with_tools, tool_node, console)
 
     # Build initial system prompt (with remote model info)
     system_prompt = _build_system_prompt(workspace_dir, hardware_summary, approved_remote)
