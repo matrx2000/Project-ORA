@@ -157,6 +157,12 @@ ollama pull qwen3:4b      # or any model you want to use
 ### 3. Launch
 
 ```bash
+./run.sh
+```
+
+Or manually:
+
+```bash
 source .venv/bin/activate
 python main.py
 ```
